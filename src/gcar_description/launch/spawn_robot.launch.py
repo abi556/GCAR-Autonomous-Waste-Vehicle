@@ -25,8 +25,9 @@ def generate_launch_description():
     # Launch arguments
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     
-    # Spawn position - on the road near the intersection (z=0.1 to account for road surface)
-    x_pose = LaunchConfiguration('x_pose', default='-5.0')
+    # Spawn position - at origin on the road (z=0.1 to account for road surface)
+    # NOTE: Robot must spawn near (0,0) so SLAM map includes robot position for Nav2 to work
+    x_pose = LaunchConfiguration('x_pose', default='0.0')
     y_pose = LaunchConfiguration('y_pose', default='0.0')
     z_pose = LaunchConfiguration('z_pose', default='0.1')
     yaw = LaunchConfiguration('yaw', default='0.0')
@@ -39,7 +40,7 @@ def generate_launch_description():
 
     declare_x_pose = DeclareLaunchArgument(
         'x_pose',
-        default_value='-5.0',
+        default_value='0.0',
         description='X position for spawning the robot'
     )
 

@@ -228,6 +228,68 @@ killall -9 gazebo gzserver gzclient
 
 **Charging Station:** Located at (-24, -8) with green indicator light
 
+## Navigation & SLAM
+
+### Launch Navigation Stack
+
+First, start the simulation with the robot:
+
+```bash
+# Terminal 1: Launch simulation
+ros2 launch gcar_description spawn_robot.launch.py
+```
+
+Then launch navigation with SLAM:
+
+```bash
+# Terminal 2: Launch SLAM + Nav2 + RViz
+ros2 launch gcar_navigation navigation.launch.py
+```
+
+### Build a Map (Teleoperation)
+
+Use WASD keyboard teleop to drive the robot and build a map:
+
+```bash
+# Terminal 3: WASD keyboard teleop
+ros2 run gcar_navigation teleop_wasd
+```
+
+**Controls:**
+- `W` - Move forward
+- `S` - Move backward
+- `A` - Turn left (rotate counter-clockwise)
+- `D` - Turn right (rotate clockwise)
+- `W+A` - Move forward while turning left
+- `W+D` - Move forward while turning right
+- `Q` - Stop
+- `+` / `-` - Increase/decrease linear speed (10%)
+- `[` / `]` - Increase/decrease angular speed (10%)
+
+**Tip:** Hold keys for continuous movement. Adjust speeds with `+/-` and `[/]` if rotation feels too fast/slow.
+
+### Save the Map
+
+After building a map, save it:
+
+```bash
+ros2 run nav2_map_server map_saver_cli -f ~/Rob_proj/gcar_ws/maps/city_map
+```
+
+### Autonomous Navigation
+
+1. In RViz, use **"2D Pose Estimate"** to set the robot's initial pose
+2. Use **"Nav2 Goal"** button to set navigation goals
+3. The robot will autonomously plan and navigate to the goal
+
+### Navigation Features
+
+- **SLAM Toolbox**: Online async mapping using LiDAR
+- **Nav2 Planner**: NavFn global path planning
+- **DWB Controller**: Differential drive local planning
+- **Costmaps**: Obstacle avoidance with inflation layers
+- **Recovery Behaviors**: Spin, backup, wait on stuck
+
 ## Project Structure
 
 ```
@@ -240,7 +302,11 @@ gcar_ws/
 │   ├── gcar_simulation/      # Gazebo world and simulation
 │   │   ├── launch/           # World launch files
 │   │   └── worlds/           # Gazebo world files
-│   ├── gcar_navigation/      # Navigation stack (planned)
+│   ├── gcar_navigation/      # SLAM and Nav2 configuration
+│   │   ├── config/           # SLAM Toolbox params
+│   │   ├── params/           # Nav2 params
+│   │   ├── launch/           # Navigation launch files
+│   │   └── rviz/             # Nav2 RViz config
 │   ├── gcar_perception/      # Waste detection (planned)
 │   ├── gcar_manipulation/    # Arm control (planned)
 │   ├── gcar_planning/        # Mission planning (planned)
