@@ -192,8 +192,9 @@
             <box><size>8 6 8</size></box>
           </geometry>
           <material>
-            <ambient>0.3 0.4 0.6 1</ambient>
-            <diffuse>0.4 0.5 0.7 1</diffuse>
+            <!-- Neutral gray to avoid triggering blue detection -->
+            <ambient>0.45 0.45 0.45 1</ambient>
+            <diffuse>0.55 0.55 0.55 1</diffuse>
           </material>
         </visual>
       </link>
@@ -281,8 +282,9 @@
             <box><size>4 4 3</size></box>
           </geometry>
           <material>
-            <ambient>0.6 0.3 0.3 1</ambient>
-            <diffuse>0.7 0.4 0.4 1</diffuse>
+            <!-- Neutral brown/gray to avoid triggering red detection -->
+            <ambient>0.45 0.38 0.30 1</ambient>
+            <diffuse>0.55 0.48 0.40 1</diffuse>
           </material>
         </visual>
       </link>
@@ -579,8 +581,9 @@
             <box><size>1 0.5 1</size></box>
           </geometry>
           <material>
-            <ambient>0.2 0.2 0.6 1</ambient>
-            <diffuse>0.3 0.3 0.7 1</diffuse>
+            <!-- Neutral gray to avoid triggering blue detection -->
+            <ambient>0.35 0.35 0.35 1</ambient>
+            <diffuse>0.45 0.45 0.45 1</diffuse>
           </material>
         </visual>
         <!-- Charging indicator light -->
@@ -730,6 +733,148 @@
 
     <!-- ==================== DUMPSTERS / SMART BINS ==================== -->
     
+    <!-- ========== ROADSIDE BINS (accessible to robot) ========== -->
+    
+    <!-- RED BIN on road edge - East side of NS road -->
+    <model name="roadside_bin_red_1">
+      <static>true</static>
+      <pose>3.5 8 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.1 0.1 1</ambient>
+            <diffuse>1.0 0.2 0.2 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- BLUE BIN on road edge - East side of NS road (recyclable) -->
+    <model name="roadside_bin_blue_1">
+      <static>true</static>
+      <pose>3.5 12 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+          <material>
+            <ambient>0.05 0.15 0.9 1</ambient>
+            <diffuse>0.10 0.25 1.0 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- RED BIN on road edge - West side of NS road -->
+    <model name="roadside_bin_red_2">
+      <static>true</static>
+      <pose>-3.5 -8 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.1 0.1 1</ambient>
+            <diffuse>1.0 0.2 0.2 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- BLUE BIN on road edge - West side of NS road (recyclable) -->
+    <model name="roadside_bin_blue_2">
+      <static>true</static>
+      <pose>-3.5 -12 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+          <material>
+            <ambient>0.05 0.15 0.9 1</ambient>
+            <diffuse>0.10 0.25 1.0 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- RED BIN on road edge - North side of EW road -->
+    <model name="roadside_bin_red_3">
+      <static>true</static>
+      <pose>10 3.5 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.1 0.1 1</ambient>
+            <diffuse>1.0 0.2 0.2 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- BLUE BIN on road edge - South side of EW road (recyclable) -->
+    <model name="roadside_bin_blue_3">
+      <static>true</static>
+      <pose>-10 -3.5 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.6 0.6 0.7</size></box>
+          </geometry>
+          <material>
+            <ambient>0.05 0.15 0.9 1</ambient>
+            <diffuse>0.10 0.25 1.0 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ========== ORIGINAL SIDEWALK BINS ========== -->
+    
     <!-- Red Dumpster 1 - General Waste (near office) -->
     <model name="dumpster_general_1">
       <static>true</static>
@@ -753,7 +898,7 @@
       </link>
     </model>
 
-    <!-- Green Dumpster 1 - Recycling (near office) -->
+    <!-- Blue Dumpster 1 - Recycling (near office) -->
     <model name="dumpster_recycling_1">
       <static>true</static>
       <pose>8 14 0.4 0 0 0</pose>
@@ -768,8 +913,8 @@
             <box><size>1.2 0.8 0.8</size></box>
           </geometry>
           <material>
-            <ambient>0.1 0.6 0.1 1</ambient>
-            <diffuse>0.2 0.8 0.2 1</diffuse>
+            <ambient>0.05 0.15 0.9 1</ambient>
+            <diffuse>0.10 0.25 1.0 1</diffuse>
             <specular>0.3 0.3 0.3 1</specular>
           </material>
         </visual>
@@ -868,7 +1013,7 @@
       </link>
     </model>
 
-    <!-- Green Dumpster 2 - Recycling (near apartment) -->
+    <!-- Blue Dumpster 2 - Recycling (near apartment) -->
     <model name="dumpster_recycling_2">
       <static>true</static>
       <pose>-8 -12 0.4 0 0 0</pose>
@@ -883,8 +1028,8 @@
             <box><size>1.2 0.8 0.8</size></box>
           </geometry>
           <material>
-            <ambient>0.1 0.6 0.1 1</ambient>
-            <diffuse>0.2 0.8 0.2 1</diffuse>
+            <ambient>0.05 0.15 0.9 1</ambient>
+            <diffuse>0.10 0.25 1.0 1</diffuse>
             <specular>0.3 0.3 0.3 1</specular>
           </material>
         </visual>

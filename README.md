@@ -290,6 +290,59 @@ ros2 run nav2_map_server map_saver_cli -f ~/Rob_proj/gcar_ws/maps/city_map
 - **Costmaps**: Obstacle avoidance with inflation layers
 - **Recovery Behaviors**: Spin, backup, wait on stuck
 
+## Perception - Waste Detection
+
+The `gcar_perception` package provides waste detection using color thresholding:
+
+- **Red objects** → Hazardous/General Waste
+- **Blue objects** → Recyclable
+
+### Run Waste Detector
+
+With the simulation running:
+
+```bash
+# Terminal: Start waste detection
+ros2 run gcar_perception waste_detector
+```
+
+The node subscribes to `/gcar/camera/image_raw` and publishes detected waste to `/detected_waste`.
+
+### Verify Camera Stream in RViz
+
+1. Start the simulation: `ros2 launch gcar_description spawn_robot.launch.py`
+2. Open RViz2: `rviz2`
+3. Click **Add** → **By topic** → Select `/gcar/camera/image_raw` → **Image**
+4. You should see the robot's camera feed
+
+**Alternative - Using rqt_image_view:**
+
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+
+Select `/gcar/camera/image_raw` from the dropdown.
+
+### Test Waste Detection
+
+```bash
+# Monitor detected waste
+ros2 topic echo /detected_waste
+```
+
+Place red or blue bins in front of the robot's camera to trigger detections.
+
+### Detection Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `min_contour_area` | 500 px² | Minimum object size to detect |
+| `detection_cooldown` | 0.5 s | Time between consecutive detections |
+
+**HSV Color Ranges (OpenCV HSV):**
+- Red: H(0-10, 160-180), S(100-255), V(100-255)
+- Blue: H(95-135), S(80-255), V(60-255)
+
 ## Project Structure
 
 ```
@@ -307,7 +360,8 @@ gcar_ws/
 │   │   ├── params/           # Nav2 params
 │   │   ├── launch/           # Navigation launch files
 │   │   └── rviz/             # Nav2 RViz config
-│   ├── gcar_perception/      # Waste detection (planned)
+│   ├── gcar_perception/      # Waste detection using color thresholding
+│   │   └── gcar_perception/  # Python nodes (waste_detector.py)
 │   ├── gcar_manipulation/    # Arm control (planned)
 │   ├── gcar_planning/        # Mission planning (planned)
 │   └── gcar_bringup/         # System integration (planned)

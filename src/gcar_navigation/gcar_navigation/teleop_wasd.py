@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""WASD keyboard teleop for GCAR robot."""
+"""WASD keyboard teleop for GCAR robot with continuous command publishing."""
 
 import sys
 import select
 import termios
 import tty
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -12,7 +13,7 @@ from geometry_msgs.msg import Twist
 
 
 class TeleopWASD(Node):
-    """WASD keyboard teleop node for GCAR."""
+    """WASD keyboard teleop node for GCAR with continuous publishing."""
 
     def __init__(self):
         super().__init__('teleop_wasd')
@@ -22,10 +23,17 @@ class TeleopWASD(Node):
         
         # Speed parameters
         self.linear_speed = 0.5  # m/s
-        self.angular_speed = 0.8  # rad/s (reduced for smoother rotation)
+        self.angular_speed = 1.2  # rad/s (increased for better rotation)
+        
+        # Current velocity state
+        self.target_linear = 0.0
+        self.target_angular = 0.0
         
         # Settings (will be set in run())
         self.settings = None
+        
+        # Publish rate (Hz)
+        self.publish_rate = 20.0  # Increased rate
         
         self.get_logger().info('WASD Teleop Node Started')
         self.print_instructions()
@@ -35,88 +43,95 @@ class TeleopWASD(Node):
         print('\n' + '='*50)
         print('GCAR WASD Teleop Controls')
         print('='*50)
-        print('Movement:')
-        print('  W - Move forward')
-        print('  S - Move backward')
-        print('  A - Turn left (rotate counter-clockwise)')
-        print('  D - Turn right (rotate clockwise)')
-        print('  W+A - Move forward while turning left')
-        print('  W+D - Move forward while turning right')
-        print('  Q - Stop')
+        print('Movement (HOLD the key):')
+        print('  W - Forward')
+        print('  S - Backward')
+        print('  A - Rotate LEFT')
+        print('  D - Rotate RIGHT')
+        print('  X - Stop immediately')
         print('\nSpeed Control:')
-        print('  + / = - Increase linear speed by 10%')
-        print('  - / _ - Decrease linear speed by 10%')
-        print('  [ - Increase angular speed by 10%')
-        print('  ] - Decrease angular speed by 10%')
+        print('  + / = - Increase linear speed')
+        print('  - / _ - Decrease linear speed')
+        print('  ] - Increase angular speed')
+        print('  [ - Decrease angular speed')
         print('\n  CTRL-C to quit')
         print('='*50)
-        print(f'Current speeds: Linear={self.linear_speed:.2f} m/s, Angular={self.angular_speed:.2f} rad/s')
+        print(f'Speeds: Linear={self.linear_speed:.2f} m/s, Angular={self.angular_speed:.2f} rad/s')
         print('='*50 + '\n')
 
-    def get_key(self):
-        """Get a single keypress from stdin."""
-        if select.select([sys.stdin], [], [], 0)[0]:
+    def get_key(self, timeout=0.05):
+        """Get a single keypress from stdin with timeout."""
+        if select.select([sys.stdin], [], [], timeout)[0]:
             return sys.stdin.read(1)
         return None
 
+    def publish_velocity(self):
+        """Publish current velocity."""
+        msg = Twist()
+        msg.linear.x = self.target_linear
+        msg.angular.z = self.target_angular
+        self.publisher_.publish(msg)
+
     def run(self):
-        """Main teleop loop."""
+        """Main teleop loop with continuous publishing.
+
+        Note: Key-repeat timing varies by OS/terminal. To make rotation reliable,
+        we *latch* the last command until you change it or press X to stop.
+        """
         # Get terminal settings before modifying
         self.settings = termios.tcgetattr(sys.stdin)
         tty.setraw(sys.stdin.fileno())
+        tty.setcbreak(sys.stdin.fileno())
+        
+        last_publish_time = time.time()
+        publish_interval = 1.0 / self.publish_rate
         
         try:
             while rclpy.ok():
-                key = self.get_key()
+                # Check for keypress (non-blocking)
+                key = self.get_key(timeout=0.02)
                 
-                if key is None:
-                    continue
+                current_time = time.time()
                 
-                # Handle key presses
-                msg = Twist()
-                msg.linear.x = 0.0
-                msg.angular.z = 0.0
+                if key is not None:
+                    key_lower = key.lower()
+                    
+                    # CTRL-C to exit
+                    if key == '\x03':
+                        break
+                    
+                    # Speed adjustment keys
+                    if key == '+' or key == '=':
+                        self.linear_speed = min(2.0, self.linear_speed + 0.1)
+                        print(f'\rLinear: {self.linear_speed:.2f} m/s   ', end='', flush=True)
+                    elif key == '-' or key == '_':
+                        self.linear_speed = max(0.1, self.linear_speed - 0.1)
+                        print(f'\rLinear: {self.linear_speed:.2f} m/s   ', end='', flush=True)
+                    elif key == ']':
+                        self.angular_speed = min(3.0, self.angular_speed + 0.1)
+                        print(f'\rAngular: {self.angular_speed:.2f} rad/s   ', end='', flush=True)
+                    elif key == '[':
+                        self.angular_speed = max(0.2, self.angular_speed - 0.1)
+                        print(f'\rAngular: {self.angular_speed:.2f} rad/s   ', end='', flush=True)
+                    
+                    # Movement keys (latched until another command / stop)
+                    elif key_lower == 'w':
+                        self.target_linear = self.linear_speed
+                    elif key_lower == 's':
+                        self.target_linear = -self.linear_speed
+                    elif key_lower == 'a':
+                        self.target_angular = self.angular_speed  # Positive = left
+                    elif key_lower == 'd':
+                        self.target_angular = -self.angular_speed  # Negative = right
+                    elif key_lower == 'x':
+                        self.target_linear = 0.0
+                        self.target_angular = 0.0
+                        print('\rSTOPPED                    ', end='', flush=True)
                 
-                key_lower = key.lower()
-                
-                # Speed adjustment keys (handle first, then continue)
-                if key == '+' or key == '=':
-                    self.linear_speed = min(2.0, self.linear_speed * 1.1)
-                    print(f'\rLinear speed: {self.linear_speed:.2f} m/s', end='', flush=True)
-                    continue
-                elif key == '-' or key == '_':
-                    self.linear_speed = max(0.1, self.linear_speed * 0.9)
-                    print(f'\rLinear speed: {self.linear_speed:.2f} m/s', end='', flush=True)
-                    continue
-                elif key == '[':
-                    self.angular_speed = min(3.0, self.angular_speed * 1.1)
-                    print(f'\rAngular speed: {self.angular_speed:.2f} rad/s', end='', flush=True)
-                    continue
-                elif key == ']':
-                    self.angular_speed = max(0.1, self.angular_speed * 0.9)
-                    print(f'\rAngular speed: {self.angular_speed:.2f} rad/s', end='', flush=True)
-                    continue
-                elif key == '\x03':  # CTRL-C
-                    break
-                
-                # Movement keys - WASD
-                if key_lower == 'w':
-                    msg.linear.x = self.linear_speed
-                elif key_lower == 's':
-                    msg.linear.x = -self.linear_speed
-                
-                if key_lower == 'a':
-                    msg.angular.z = self.angular_speed
-                elif key_lower == 'd':
-                    msg.angular.z = -self.angular_speed
-                
-                # Q to stop (explicitly zero)
-                if key_lower == 'q':
-                    msg.linear.x = 0.0
-                    msg.angular.z = 0.0
-                
-                # Publish the command
-                self.publisher_.publish(msg)
+                # Publish at fixed rate
+                if current_time - last_publish_time >= publish_interval:
+                    self.publish_velocity()
+                    last_publish_time = current_time
                 
         except Exception as e:
             self.get_logger().error(f'Error in teleop loop: {e}')
@@ -124,10 +139,9 @@ class TeleopWASD(Node):
             # Restore terminal settings
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
             # Stop the robot
-            stop_msg = Twist()
-            stop_msg.linear.x = 0.0
-            stop_msg.angular.z = 0.0
-            self.publisher_.publish(stop_msg)
+            self.target_linear = 0.0
+            self.target_angular = 0.0
+            self.publish_velocity()
             print('\nTeleop stopped. Robot halted.')
 
 
@@ -148,4 +162,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
