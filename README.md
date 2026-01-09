@@ -11,17 +11,6 @@ GCAR is an autonomous garbage collection robot simulated in Gazebo that integrat
 - Intelligent mission planning with learning-based route optimization
 - Human-aware interaction and safety behaviors
 
-## Group Members
-
-| Name              | ID           |
-|-------------------|--------------|
-| Shmuye Ayalneh    | UGR/7284/15  |
-| Dame Abera        | UGR/0123/15  |
-| Abiy Hailu        | UGR/8730/15  |
-| Natnael Eyuel     | UGR/4424/15  |
-| Yamlak Ngeash     | UGR/2910/15  |
-| Kaku Amsalu       | UGR/3710/15  |
-
 ## Prerequisites
 
 - Ubuntu 22.04 LTS
@@ -63,13 +52,152 @@ GCAR is an autonomous garbage collection robot simulated in Gazebo that integrat
 
 ## How to Run
 
-### Launch the City World (Gazebo Simulation)
+### View Robot in RViz2 (without Gazebo)
+
+```bash
+ros2 launch gcar_description display.launch.py
+```
+
+This opens RViz2 with:
+- Robot model visualization
+- Joint state publisher GUI to move arm joints
+- TF frames display
+
+### Launch Robot in City World (Full Simulation)
+
+```bash
+ros2 launch gcar_description spawn_robot.launch.py
+```
+
+This will:
+1. Launch Gazebo with the city world
+2. Spawn the GCAR robot on the main road near the intersection (default: x = -5.0, y = 0.0)
+3. Start robot state publisher
+
+### Launch City World Only (without robot)
 
 ```bash
 ros2 launch gcar_simulation world.launch.py
 ```
 
-This will open Gazebo with a realistic urban environment:
+## Testing Guide
+
+### 1. View Robot in RViz2 (URDF only, no Gazebo)
+
+```bash
+cd ~/Rob_proj/gcar_ws
+source install/setup.bash
+ros2 launch gcar_description display.launch.py
+```
+
+- **What it does**: Opens RViz2 with the GCAR robot model and the Joint State Publisher GUI so you can move the arm joints and verify the URDF and TF frames.
+
+---
+
+### 2. Full Simulation: City World + Robot Spawn
+
+```bash
+cd ~/Rob_proj/gcar_ws
+source install/setup.bash
+ros2 launch gcar_description spawn_robot.launch.py
+```
+
+- **What it does**: Starts Gazebo with the GCAR city world, spawns the GCAR robot on the main road near the intersection, and runs `robot_state_publisher` so all TF and `robot_description` are available.
+
+---
+
+### 3. Move the Robot with `cmd_vel` (Planar Move Plugin)
+
+First terminal:
+
+```bash
+cd ~/Rob_proj/gcar_ws
+source install/setup.bash
+ros2 launch gcar_description spawn_robot.launch.py
+```
+
+Second terminal:
+
+```bash
+cd ~/Rob_proj/gcar_ws
+source install/setup.bash
+ros2 topic pub /gcar/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+- **What it does**: Publishes a forward velocity command so the floating chassis slides forward in Gazebo (no wheels, planar motion).
+
+To stop the robot:
+
+```bash
+ros2 topic pub /gcar/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+- **What it does**: Sends zero velocity so the robot stops moving.
+
+---
+
+### 4. Check LiDAR, Camera, and Odometry Topics
+
+With the simulation running (`spawn_robot.launch.py`):
+
+```bash
+cd ~/Rob_proj/gcar_ws
+source install/setup.bash
+
+# List GCAR-related topics
+ros2 topic list | grep gcar
+
+# Check one LiDAR message
+ros2 topic echo /gcar/scan --once
+
+# Check one odometry message
+ros2 topic echo /gcar/odom --once
+```
+
+- **What they do**: Confirm that LiDAR and odometry topics exist and are publishing sane data.
+
+Optional camera visualization:
+
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+
+- **What it does**: Opens an image viewer; select `/gcar/camera/image_raw` in the dropdown to see the RGB camera feed (if your Qt/Wayland setup allows).
+
+---
+
+### 5. Troubleshooting Gazebo Already Running
+
+If you see "Address already in use" errors:
+
+```bash
+killall -9 gazebo gzserver gzclient
+```
+
+- **What it does**: Force-kills any leftover Gazebo processes so you can relaunch cleanly.
+
+## Robot Description
+
+**GCAR Robot Features:**
+- **Chassis:** Floating box (0.5m × 0.3m × 0.2m) with planar move plugin
+- **Drive:** `cmd_vel` control via `libgazebo_ros_planar_move.so`
+- **Arm:** 3-DOF articulated arm (base rotation, shoulder pitch, elbow pitch)
+- **Gripper:** Vacuum-style gripper at end effector
+- **Sensors:**
+  - LiDAR (360° scan, 10m range) on `/gcar/scan`
+  - RGB Camera (640×480) on `/gcar/camera/image_raw`
+  - Depth Camera on `/gcar/depth/image_raw`
+
+**ROS Topics:**
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/gcar/cmd_vel` | `geometry_msgs/Twist` | Velocity commands |
+| `/gcar/odom` | `nav_msgs/Odometry` | Odometry |
+| `/gcar/scan` | `sensor_msgs/LaserScan` | LiDAR data |
+| `/gcar/camera/image_raw` | `sensor_msgs/Image` | RGB camera |
+| `/gcar/joint_states` | `sensor_msgs/JointState` | Arm joint states |
+
+## City Environment
 
 **Infrastructure:**
 - Roads with lane markings (cross intersection)
@@ -99,15 +227,18 @@ This will open Gazebo with a realistic urban environment:
 ```
 gcar_ws/
 ├── src/
-│   ├── gcar_simulation/      # Gazebo world and simulation environment
-│   │   ├── launch/           # Launch files
+│   ├── gcar_description/     # Robot URDF/Xacro models
+│   │   ├── urdf/             # Robot description files
+│   │   ├── launch/           # Display and spawn launch files
+│   │   └── rviz/             # RViz configuration
+│   ├── gcar_simulation/      # Gazebo world and simulation
+│   │   ├── launch/           # World launch files
 │   │   └── worlds/           # Gazebo world files
-│   ├── gcar_description/     # Robot URDF/Xacro models (planned)
-│   ├── gcar_navigation/      # Navigation stack configuration (planned)
-│   ├── gcar_perception/      # Waste detection and classification (planned)
-│   ├── gcar_manipulation/    # Arm control and MoveIt configuration (planned)
-│   ├── gcar_planning/        # Mission planning and state machine (planned)
-│   └── gcar_bringup/         # Launch files and system integration (planned)
+│   ├── gcar_navigation/      # Navigation stack (planned)
+│   ├── gcar_perception/      # Waste detection (planned)
+│   ├── gcar_manipulation/    # Arm control (planned)
+│   ├── gcar_planning/        # Mission planning (planned)
+│   └── gcar_bringup/         # System integration (planned)
 └── README.md
 ```
 

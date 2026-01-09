@@ -1,0 +1,461 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="gcar">
+
+  <!-- ==================== PROPERTIES ==================== -->
+  <xacro:property name="chassis_length" value="0.5"/>
+  <xacro:property name="chassis_width" value="0.3"/>
+  <xacro:property name="chassis_height" value="0.2"/>
+  <xacro:property name="chassis_mass" value="10.0"/>
+
+  <!-- Arm segment properties -->
+  <xacro:property name="arm_base_height" value="0.08"/>
+  <xacro:property name="arm_base_radius" value="0.06"/>
+  <xacro:property name="upper_arm_length" value="0.25"/>
+  <xacro:property name="forearm_length" value="0.20"/>
+  <xacro:property name="wrist_length" value="0.10"/>
+  <xacro:property name="link_radius" value="0.025"/>
+  <xacro:property name="arm_mass" value="0.5"/>
+
+  <!-- Sensor properties -->
+  <xacro:property name="lidar_radius" value="0.05"/>
+  <xacro:property name="lidar_height" value="0.04"/>
+  <xacro:property name="camera_size" value="0.04"/>
+
+  <!-- ==================== MATERIALS ==================== -->
+  <material name="orange">
+    <color rgba="1.0 0.5 0.0 1.0"/>
+  </material>
+  <material name="dark_gray">
+    <color rgba="0.3 0.3 0.3 1.0"/>
+  </material>
+  <material name="light_gray">
+    <color rgba="0.7 0.7 0.7 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.2 0.4 0.8 1.0"/>
+  </material>
+  <material name="black">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="silver">
+    <color rgba="0.8 0.8 0.85 1.0"/>
+  </material>
+
+  <!-- ==================== INERTIA MACROS ==================== -->
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertia ixx="${(m/12)*(y*y+z*z)}" ixy="0" ixz="0"
+             iyy="${(m/12)*(x*x+z*z)}" iyz="0"
+             izz="${(m/12)*(x*x+y*y)}"/>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertia" params="m r h">
+    <inertia ixx="${(m/12)*(3*r*r+h*h)}" ixy="0" ixz="0"
+             iyy="${(m/12)*(3*r*r+h*h)}" iyz="0"
+             izz="${(m/2)*r*r}"/>
+  </xacro:macro>
+
+  <xacro:macro name="sphere_inertia" params="m r">
+    <inertia ixx="${(2/5)*m*r*r}" ixy="0" ixz="0"
+             iyy="${(2/5)*m*r*r}" iyz="0"
+             izz="${(2/5)*m*r*r}"/>
+  </xacro:macro>
+
+  <!-- ==================== BASE LINK (CHASSIS) ==================== -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="orange"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${chassis_mass}"/>
+      <xacro:box_inertia m="${chassis_mass}" x="${chassis_length}" y="${chassis_width}" z="${chassis_height}"/>
+    </inertial>
+  </link>
+
+  <!-- Base footprint for navigation -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${chassis_height/2 + 0.05}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== 3-DOF ARM ==================== -->
+  
+  <!-- Arm Base (turret) - Rotates around Z axis -->
+  <link name="arm_base_link">
+    <visual>
+      <geometry>
+        <cylinder radius="${arm_base_radius}" length="${arm_base_height}"/>
+      </geometry>
+      <material name="dark_gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${arm_base_radius}" length="${arm_base_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${arm_mass}"/>
+      <xacro:cylinder_inertia m="${arm_mass}" r="${arm_base_radius}" h="${arm_base_height}"/>
+    </inertial>
+  </link>
+
+  <joint name="arm_base_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="arm_base_link"/>
+    <origin xyz="0.1 0 ${chassis_height/2 + arm_base_height/2}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14159" upper="3.14159" effort="50" velocity="1.0"/>
+    <dynamics damping="0.5" friction="0.1"/>
+  </joint>
+
+  <!-- Shoulder Link - Rotates around Y axis (pitch) -->
+  <link name="shoulder_link">
+    <visual>
+      <origin xyz="0 0 ${upper_arm_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${upper_arm_length}"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${upper_arm_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${upper_arm_length}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${upper_arm_length/2}" rpy="0 0 0"/>
+      <mass value="${arm_mass}"/>
+      <xacro:cylinder_inertia m="${arm_mass}" r="${link_radius}" h="${upper_arm_length}"/>
+    </inertial>
+  </link>
+
+  <joint name="shoulder_joint" type="revolute">
+    <parent link="arm_base_link"/>
+    <child link="shoulder_link"/>
+    <origin xyz="0 0 ${arm_base_height/2}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="50" velocity="1.0"/>
+    <dynamics damping="0.5" friction="0.1"/>
+  </joint>
+
+  <!-- Elbow Link - Rotates around Y axis (pitch) -->
+  <link name="elbow_link">
+    <visual>
+      <origin xyz="0 0 ${forearm_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${forearm_length}"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${forearm_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius}" length="${forearm_length}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${forearm_length/2}" rpy="0 0 0"/>
+      <mass value="${arm_mass}"/>
+      <xacro:cylinder_inertia m="${arm_mass}" r="${link_radius}" h="${forearm_length}"/>
+    </inertial>
+  </link>
+
+  <joint name="elbow_joint" type="revolute">
+    <parent link="shoulder_link"/>
+    <child link="elbow_link"/>
+    <origin xyz="0 0 ${upper_arm_length}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.35" upper="2.35" effort="50" velocity="1.0"/>
+    <dynamics damping="0.5" friction="0.1"/>
+  </joint>
+
+  <!-- Wrist Link -->
+  <link name="wrist_link">
+    <visual>
+      <origin xyz="0 0 ${wrist_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius * 0.8}" length="${wrist_length}"/>
+      </geometry>
+      <material name="light_gray"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${wrist_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${link_radius * 0.8}" length="${wrist_length}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${wrist_length/2}" rpy="0 0 0"/>
+      <mass value="${arm_mass * 0.5}"/>
+      <xacro:cylinder_inertia m="${arm_mass * 0.5}" r="${link_radius * 0.8}" h="${wrist_length}"/>
+    </inertial>
+  </link>
+
+  <joint name="wrist_joint" type="fixed">
+    <parent link="elbow_link"/>
+    <child link="wrist_link"/>
+    <origin xyz="0 0 ${forearm_length}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== VACUUM GRIPPER ==================== -->
+  <link name="gripper_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.02"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.02"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <xacro:cylinder_inertia m="0.1" r="0.03" h="0.02"/>
+    </inertial>
+  </link>
+
+  <joint name="gripper_joint" type="fixed">
+    <parent link="wrist_link"/>
+    <child link="gripper_link"/>
+    <origin xyz="0 0 ${wrist_length + 0.01}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Tool Center Point (TCP) for manipulation -->
+  <link name="tool_frame"/>
+  <joint name="tool_frame_joint" type="fixed">
+    <parent link="gripper_link"/>
+    <child link="tool_frame"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== LIDAR SENSOR ==================== -->
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <cylinder radius="${lidar_radius}" length="${lidar_height}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${lidar_radius}" length="${lidar_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.2"/>
+      <xacro:cylinder_inertia m="0.2" r="${lidar_radius}" h="${lidar_height}"/>
+    </inertial>
+  </link>
+
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="-0.15 0 ${chassis_height/2 + lidar_height/2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== CAMERA SENSOR ==================== -->
+  <link name="camera_link">
+    <visual>
+      <geometry>
+        <box size="${camera_size} ${camera_size*1.5} ${camera_size}"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${camera_size} ${camera_size*1.5} ${camera_size}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <xacro:box_inertia m="0.1" x="${camera_size}" y="${camera_size*1.5}" z="${camera_size}"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="${chassis_length/2 + camera_size/2} 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Camera optical frame (Z forward, X right, Y down) -->
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- ==================== GAZEBO PLUGINS ==================== -->
+  <gazebo>
+    <!-- Planar Move Plugin for floating base control -->
+    <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
+      <ros>
+        <namespace>/gcar</namespace>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=odom</remapping>
+      </ros>
+      <update_rate>50</update_rate>
+      <publish_rate>50</publish_rate>
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+    </plugin>
+
+    <!-- Joint State Publisher -->
+    <plugin name="joint_state_publisher" filename="libgazebo_ros_joint_state_publisher.so">
+      <ros>
+        <namespace>/gcar</namespace>
+        <remapping>joint_states:=joint_states</remapping>
+      </ros>
+      <update_rate>50</update_rate>
+      <joint_name>arm_base_joint</joint_name>
+      <joint_name>shoulder_joint</joint_name>
+      <joint_name>elbow_joint</joint_name>
+    </plugin>
+  </gazebo>
+
+  <!-- Gazebo material colors -->
+  <gazebo reference="base_link">
+    <material>Gazebo/Orange</material>
+  </gazebo>
+
+  <gazebo reference="arm_base_link">
+    <material>Gazebo/DarkGrey</material>
+  </gazebo>
+
+  <gazebo reference="shoulder_link">
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <gazebo reference="elbow_link">
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <gazebo reference="wrist_link">
+    <material>Gazebo/White</material>
+  </gazebo>
+
+  <gazebo reference="gripper_link">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="lidar_link">
+    <material>Gazebo/Blue</material>
+    <!-- LiDAR Sensor Plugin -->
+    <sensor name="lidar" type="ray">
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <visualize>false</visualize>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.12</min>
+          <max>10.0</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </ray>
+      <plugin name="lidar_plugin" filename="libgazebo_ros_ray_sensor.so">
+        <ros>
+          <namespace>/gcar</namespace>
+          <remapping>~/out:=scan</remapping>
+        </ros>
+        <output_type>sensor_msgs/LaserScan</output_type>
+        <frame_name>lidar_link</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="camera_link">
+    <material>Gazebo/Black</material>
+    <!-- RGB Camera Sensor Plugin -->
+    <sensor name="camera" type="camera">
+      <always_on>true</always_on>
+      <update_rate>30</update_rate>
+      <visualize>false</visualize>
+      <camera>
+        <horizontal_fov>1.3962634</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.02</near>
+          <far>100</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+      <plugin name="camera_plugin" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>/gcar</namespace>
+          <remapping>image_raw:=camera/image_raw</remapping>
+          <remapping>camera_info:=camera/camera_info</remapping>
+        </ros>
+        <camera_name>camera</camera_name>
+        <frame_name>camera_optical_frame</frame_name>
+      </plugin>
+    </sensor>
+
+    <!-- Depth Camera for waste detection -->
+    <sensor name="depth_camera" type="depth">
+      <always_on>true</always_on>
+      <update_rate>15</update_rate>
+      <camera>
+        <horizontal_fov>1.047198</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10</far>
+        </clip>
+      </camera>
+      <plugin name="depth_camera_plugin" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>/gcar</namespace>
+          <remapping>image_raw:=depth/image_raw</remapping>
+          <remapping>camera_info:=depth/camera_info</remapping>
+          <remapping>points:=depth/points</remapping>
+        </ros>
+        <camera_name>depth</camera_name>
+        <frame_name>camera_optical_frame</frame_name>
+        <min_depth>0.1</min_depth>
+        <max_depth>10.0</max_depth>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+</robot>
+
