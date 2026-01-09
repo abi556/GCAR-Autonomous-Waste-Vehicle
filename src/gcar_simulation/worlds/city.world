@@ -1,0 +1,918 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="gcar_city">
+
+    <!-- Physics settings -->
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- Sun light source -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Ground plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- ==================== ROADS ==================== -->
+    <!-- Main Road (North-South) -->
+    <model name="road_ns_main">
+      <static>true</static>
+      <pose>0 0 0.01 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>6 60 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Main Road (East-West) -->
+    <model name="road_ew_main">
+      <static>true</static>
+      <pose>0 0 0.01 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>60 6 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Road Lane Markings (center lines) -->
+    <model name="lane_marking_ns">
+      <static>true</static>
+      <pose>0 0 0.02 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 60 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="lane_marking_ew">
+      <static>true</static>
+      <pose>0 0 0.02 0 0 1.5708</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 60 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== SIDEWALKS ==================== -->
+    <!-- NE Quadrant Sidewalk -->
+    <model name="sidewalk_ne">
+      <static>true</static>
+      <pose>15 15 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.6 0.55 1</ambient>
+            <diffuse>0.7 0.7 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- NW Quadrant Sidewalk -->
+    <model name="sidewalk_nw">
+      <static>true</static>
+      <pose>-15 15 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.6 0.55 1</ambient>
+            <diffuse>0.7 0.7 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- SE Quadrant Sidewalk -->
+    <model name="sidewalk_se">
+      <static>true</static>
+      <pose>15 -15 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.6 0.55 1</ambient>
+            <diffuse>0.7 0.7 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- SW Quadrant Sidewalk -->
+    <model name="sidewalk_sw">
+      <static>true</static>
+      <pose>-15 -15 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>24 24 0.1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.6 0.55 1</ambient>
+            <diffuse>0.7 0.7 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== BUILDINGS - NE QUADRANT ==================== -->
+    <!-- Tall Office Building -->
+    <model name="building_office_1">
+      <static>true</static>
+      <pose>12 18 4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>8 6 8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>8 6 8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.4 0.6 1</ambient>
+            <diffuse>0.4 0.5 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Medium Commercial Building -->
+    <model name="building_commercial_1">
+      <static>true</static>
+      <pose>22 12 2.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>6 8 5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>6 8 5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.5 0.3 1</ambient>
+            <diffuse>0.8 0.6 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== BUILDINGS - NW QUADRANT ==================== -->
+    <!-- Residential Building 1 -->
+    <model name="building_residential_1">
+      <static>true</static>
+      <pose>-12 20 3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>7 5 6</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>7 5 6</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.7 0.6 1</ambient>
+            <diffuse>0.9 0.8 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Residential Building 2 -->
+    <model name="building_residential_2">
+      <static>true</static>
+      <pose>-22 14 2.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>5 6 5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>5 6 5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.75 0.75 0.7 1</ambient>
+            <diffuse>0.85 0.85 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Small Shop -->
+    <model name="building_shop_1">
+      <static>true</static>
+      <pose>-18 8 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>4 4 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>4 4 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.3 0.3 1</ambient>
+            <diffuse>0.7 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== BUILDINGS - SE QUADRANT ==================== -->
+    <!-- Large Warehouse -->
+    <model name="building_warehouse_1">
+      <static>true</static>
+      <pose>18 -18 3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 8 6</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>10 8 6</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.6 0.6 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Small Office -->
+    <model name="building_office_2">
+      <static>true</static>
+      <pose>10 -12 2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>5 5 4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>5 5 4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.4 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.6 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== BUILDINGS - SW QUADRANT ==================== -->
+    <!-- Apartment Complex -->
+    <model name="building_apartment_1">
+      <static>true</static>
+      <pose>-14 -14 5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>8 8 10</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>8 8 10</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.55 0.5 1</ambient>
+            <diffuse>0.7 0.65 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Community Center -->
+    <model name="building_community">
+      <static>true</static>
+      <pose>-22 -20 2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>6 6 4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>6 6 4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.4 1</ambient>
+            <diffuse>0.4 0.6 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== STREET LAMPS ==================== -->
+    <!-- Lamp Post 1 - NE -->
+    <model name="lamp_post_1">
+      <static>true</static>
+      <pose>4 10 0 0 0 0</pose>
+      <link name="pole">
+        <visual name="pole_visual">
+          <pose>0 0 2 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.08</radius><length>4</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="light_visual">
+          <pose>0 0 4.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.2</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>1 1 0.8 1</ambient>
+            <diffuse>1 1 0.9 1</diffuse>
+            <emissive>0.8 0.8 0.5 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Lamp Post 2 - NW -->
+    <model name="lamp_post_2">
+      <static>true</static>
+      <pose>-4 10 0 0 0 0</pose>
+      <link name="pole">
+        <visual name="pole_visual">
+          <pose>0 0 2 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.08</radius><length>4</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="light_visual">
+          <pose>0 0 4.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.2</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>1 1 0.8 1</ambient>
+            <diffuse>1 1 0.9 1</diffuse>
+            <emissive>0.8 0.8 0.5 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Lamp Post 3 - SE -->
+    <model name="lamp_post_3">
+      <static>true</static>
+      <pose>4 -10 0 0 0 0</pose>
+      <link name="pole">
+        <visual name="pole_visual">
+          <pose>0 0 2 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.08</radius><length>4</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="light_visual">
+          <pose>0 0 4.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.2</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>1 1 0.8 1</ambient>
+            <diffuse>1 1 0.9 1</diffuse>
+            <emissive>0.8 0.8 0.5 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Lamp Post 4 - SW -->
+    <model name="lamp_post_4">
+      <static>true</static>
+      <pose>-4 -10 0 0 0 0</pose>
+      <link name="pole">
+        <visual name="pole_visual">
+          <pose>0 0 2 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.08</radius><length>4</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="light_visual">
+          <pose>0 0 4.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.2</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>1 1 0.8 1</ambient>
+            <diffuse>1 1 0.9 1</diffuse>
+            <emissive>0.8 0.8 0.5 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Lamp Posts along EW road -->
+    <model name="lamp_post_5">
+      <static>true</static>
+      <pose>10 4 0 0 0 0</pose>
+      <link name="pole">
+        <visual name="pole_visual">
+          <pose>0 0 2 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.08</radius><length>4</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="light_visual">
+          <pose>0 0 4.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.2</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>1 1 0.8 1</ambient>
+            <diffuse>1 1 0.9 1</diffuse>
+            <emissive>0.8 0.8 0.5 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="lamp_post_6">
+      <static>true</static>
+      <pose>-10 4 0 0 0 0</pose>
+      <link name="pole">
+        <visual name="pole_visual">
+          <pose>0 0 2 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.08</radius><length>4</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="light_visual">
+          <pose>0 0 4.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.2</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>1 1 0.8 1</ambient>
+            <diffuse>1 1 0.9 1</diffuse>
+            <emissive>0.8 0.8 0.5 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== CHARGING STATION ==================== -->
+    <!-- Charging Station Platform -->
+    <model name="charging_station">
+      <static>true</static>
+      <pose>-24 -8 0.1 0 0 0</pose>
+      <link name="base">
+        <collision name="collision">
+          <geometry>
+            <box><size>4 4 0.2</size></box>
+          </geometry>
+        </collision>
+        <visual name="base_visual">
+          <geometry>
+            <box><size>4 4 0.2</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.4 0.1 1</ambient>
+            <diffuse>0.2 0.5 0.2 1</diffuse>
+          </material>
+        </visual>
+        <!-- Charging Unit -->
+        <visual name="charger_visual">
+          <pose>0 -1.5 0.6 0 0 0</pose>
+          <geometry>
+            <box><size>1 0.5 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.6 1</ambient>
+            <diffuse>0.3 0.3 0.7 1</diffuse>
+          </material>
+        </visual>
+        <!-- Charging indicator light -->
+        <visual name="indicator_visual">
+          <pose>0 -1.5 1.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.15</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>0 1 0 1</ambient>
+            <diffuse>0 1 0 1</diffuse>
+            <emissive>0 0.8 0 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== PARK BENCHES ==================== -->
+    <!-- Bench 1 -->
+    <model name="bench_1">
+      <static>true</static>
+      <pose>8 8 0.3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.5 0.5 0.6</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.5 0.5 0.6</size></box>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1</ambient>
+            <diffuse>0.5 0.3 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Bench 2 -->
+    <model name="bench_2">
+      <static>true</static>
+      <pose>-8 -8 0.3 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.5 0.5 0.6</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.5 0.5 0.6</size></box>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1</ambient>
+            <diffuse>0.5 0.3 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== TREES (Simple) ==================== -->
+    <!-- Tree 1 -->
+    <model name="tree_1">
+      <static>true</static>
+      <pose>6 22 0 0 0 0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 1 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.2</radius><length>2</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1</ambient>
+            <diffuse>0.5 0.3 0.15 1</diffuse>
+          </material>
+        </visual>
+        <visual name="leaves">
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <sphere><radius>1.5</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>0.1 0.5 0.1 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tree 2 -->
+    <model name="tree_2">
+      <static>true</static>
+      <pose>-6 22 0 0 0 0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 1 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.2</radius><length>2</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1</ambient>
+            <diffuse>0.5 0.3 0.15 1</diffuse>
+          </material>
+        </visual>
+        <visual name="leaves">
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <sphere><radius>1.5</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>0.1 0.5 0.1 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tree 3 -->
+    <model name="tree_3">
+      <static>true</static>
+      <pose>22 -6 0 0 0 0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 1 0 0 0</pose>
+          <geometry>
+            <cylinder><radius>0.2</radius><length>2</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1</ambient>
+            <diffuse>0.5 0.3 0.15 1</diffuse>
+          </material>
+        </visual>
+        <visual name="leaves">
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <sphere><radius>1.5</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>0.1 0.5 0.1 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== DUMPSTERS / SMART BINS ==================== -->
+    
+    <!-- Red Dumpster 1 - General Waste (near office) -->
+    <model name="dumpster_general_1">
+      <static>true</static>
+      <pose>8 16 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.1 0.1 1</ambient>
+            <diffuse>0.9 0.2 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Green Dumpster 1 - Recycling (near office) -->
+    <model name="dumpster_recycling_1">
+      <static>true</static>
+      <pose>8 14 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.6 0.1 1</ambient>
+            <diffuse>0.2 0.8 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Red Dumpster 2 - General Waste (near residential) -->
+    <model name="dumpster_general_2">
+      <static>true</static>
+      <pose>-8 18 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.1 0.1 1</ambient>
+            <diffuse>0.9 0.2 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Blue Dumpster 1 - Paper (near residential) -->
+    <model name="dumpster_paper_1">
+      <static>true</static>
+      <pose>-8 16 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.2 0.7 1</ambient>
+            <diffuse>0.2 0.3 0.9 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Red Dumpster 3 - General Waste (near warehouse) -->
+    <model name="dumpster_general_3">
+      <static>true</static>
+      <pose>12 -16 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.1 0.1 1</ambient>
+            <diffuse>0.9 0.2 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Yellow Dumpster 1 - Metal (near warehouse) -->
+    <model name="dumpster_metal_1">
+      <static>true</static>
+      <pose>14 -16 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.7 0.1 1</ambient>
+            <diffuse>0.9 0.8 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Green Dumpster 2 - Recycling (near apartment) -->
+    <model name="dumpster_recycling_2">
+      <static>true</static>
+      <pose>-8 -12 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.6 0.1 1</ambient>
+            <diffuse>0.2 0.8 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Brown Dumpster - Organic (near community center) -->
+    <model name="dumpster_organic_1">
+      <static>true</static>
+      <pose>-18 -18 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.3 0.1 1</ambient>
+            <diffuse>0.6 0.4 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

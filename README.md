@@ -26,7 +26,7 @@ GCAR is an autonomous garbage collection robot simulated in Gazebo that integrat
 
 - Ubuntu 22.04 LTS
 - ROS 2 Humble
-- Gazebo (Fortress or Classic)
+- Gazebo Classic (gazebo11)
 - Python 3.10+
 - colcon build tools
 
@@ -35,7 +35,8 @@ GCAR is an autonomous garbage collection robot simulated in Gazebo that integrat
 1. **Clone the repository:**
    ```bash
    cd ~/
-   git clone <repository-url> gcar_ws/src
+   git clone <repository-url> gcar_ws
+   cd gcar_ws
    ```
 
 2. **Install dependencies:**
@@ -62,29 +63,54 @@ GCAR is an autonomous garbage collection robot simulated in Gazebo that integrat
 
 ## How to Run
 
-*(Instructions will be added as packages are developed)*
+### Launch the City World (Gazebo Simulation)
 
 ```bash
-# Example launch command (to be updated)
-ros2 launch gcar_bringup gcar_simulation.launch.py
+ros2 launch gcar_simulation world.launch.py
 ```
+
+This will open Gazebo with a realistic urban environment:
+
+**Infrastructure:**
+- Roads with lane markings (cross intersection)
+- Sidewalks in all four quadrants
+- Street lamp posts with lights
+- Park benches and trees
+
+**Buildings:**
+- Office buildings (blue/gray)
+- Residential buildings (beige/cream)
+- Warehouse (gray)
+- Shops and community center
+
+**Smart Bins (Color-coded by waste type):**
+| Color  | Type           | Locations                    |
+|--------|----------------|------------------------------|
+| 🔴 Red    | General Waste  | Near office, residential, warehouse |
+| 🟢 Green  | Recycling      | Near office, apartment       |
+| 🔵 Blue   | Paper          | Near residential             |
+| 🟡 Yellow | Metal          | Near warehouse               |
+| 🟤 Brown  | Organic        | Near community center        |
+
+**Charging Station:** Located at (-24, -8) with green indicator light
 
 ## Project Structure
 
 ```
 gcar_ws/
 ├── src/
-│   ├── gcar_description/    # Robot URDF/Xacro models
-│   ├── gcar_gazebo/         # Gazebo world and simulation
-│   ├── gcar_navigation/     # Navigation stack configuration
-│   ├── gcar_perception/     # Waste detection and classification
-│   ├── gcar_manipulation/   # Arm control and MoveIt configuration
-│   ├── gcar_planning/       # Mission planning and state machine
-│   └── gcar_bringup/        # Launch files and system integration
+│   ├── gcar_simulation/      # Gazebo world and simulation environment
+│   │   ├── launch/           # Launch files
+│   │   └── worlds/           # Gazebo world files
+│   ├── gcar_description/     # Robot URDF/Xacro models (planned)
+│   ├── gcar_navigation/      # Navigation stack configuration (planned)
+│   ├── gcar_perception/      # Waste detection and classification (planned)
+│   ├── gcar_manipulation/    # Arm control and MoveIt configuration (planned)
+│   ├── gcar_planning/        # Mission planning and state machine (planned)
+│   └── gcar_bringup/         # Launch files and system integration (planned)
 └── README.md
 ```
 
 ## License
 
 This project is developed for academic purposes as part of robotics coursework.
-
