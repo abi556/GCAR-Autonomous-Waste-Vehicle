@@ -2,10 +2,24 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="gcar">
 
   <!-- ==================== PROPERTIES ==================== -->
+  <!-- Chassis -->
   <xacro:property name="chassis_length" value="0.5"/>
   <xacro:property name="chassis_width" value="0.3"/>
-  <xacro:property name="chassis_height" value="0.2"/>
-  <xacro:property name="chassis_mass" value="10.0"/>
+  <xacro:property name="chassis_height" value="0.12"/>
+  <xacro:property name="chassis_mass" value="8.0"/>
+
+  <!-- Wheels - All 4 wheels are cylinders -->
+  <xacro:property name="wheel_radius" value="0.06"/>
+  <xacro:property name="wheel_width" value="0.04"/>
+  <xacro:property name="wheel_mass" value="0.5"/>
+  <xacro:property name="wheel_separation" value="0.34"/>
+  
+  <!-- Wheel positions (relative to chassis center) -->
+  <xacro:property name="rear_wheel_x" value="-0.15"/>
+  <xacro:property name="front_wheel_x" value="0.15"/>
+
+  <!-- Ground clearance -->
+  <xacro:property name="ground_clearance" value="0.02"/>
 
   <!-- Arm segment properties -->
   <xacro:property name="arm_base_height" value="0.08"/>
@@ -26,7 +40,7 @@
     <color rgba="1.0 0.5 0.0 1.0"/>
   </material>
   <material name="dark_gray">
-    <color rgba="0.3 0.3 0.3 1.0"/>
+    <color rgba="0.2 0.2 0.2 1.0"/>
   </material>
   <material name="light_gray">
     <color rgba="0.7 0.7 0.7 1.0"/>
@@ -60,6 +74,61 @@
              izz="${(2/5)*m*r*r}"/>
   </xacro:macro>
 
+  <!-- ==================== WHEEL MACRO ==================== -->
+  <xacro:macro name="wheel" params="prefix x_pos y_reflect">
+    <link name="${prefix}_wheel_link">
+      <!-- Main wheel cylinder -->
+      <visual name="wheel_visual">
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="dark_gray"/>
+      </visual>
+      <!-- White stripe to show rotation -->
+      <visual name="stripe_visual">
+        <origin xyz="${wheel_radius * 0.5} 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <box size="${wheel_radius * 0.8} ${wheel_width + 0.002} 0.015"/>
+        </geometry>
+        <material name="white">
+          <color rgba="1.0 1.0 1.0 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <mass value="${wheel_mass}"/>
+        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" h="${wheel_width}"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_wheel_link"/>
+      <origin xyz="${x_pos} ${y_reflect * wheel_separation / 2} ${-chassis_height/2 - ground_clearance}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.01" friction="0.1"/>
+    </joint>
+
+    <gazebo reference="${prefix}_wheel_link">
+      <material>Gazebo/DarkGrey</material>
+      <mu1>1.5</mu1>
+      <mu2>1.5</mu2>
+      <kp>1000000.0</kp>
+      <kd>100.0</kd>
+      <minDepth>0.001</minDepth>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- ==================== BASE FOOTPRINT ==================== -->
+  <link name="base_footprint"/>
+
   <!-- ==================== BASE LINK (CHASSIS) ==================== -->
   <link name="base_link">
     <visual>
@@ -79,13 +148,25 @@
     </inertial>
   </link>
 
-  <!-- Base footprint for navigation -->
-  <link name="base_footprint"/>
+  <!-- Base footprint joint - chassis center is above ground by wheel_radius + ground_clearance + half chassis height -->
   <joint name="base_footprint_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
-    <origin xyz="0 0 ${chassis_height/2 + 0.05}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${wheel_radius + ground_clearance + chassis_height/2}" rpy="0 0 0"/>
   </joint>
+
+  <gazebo reference="base_link">
+    <material>Gazebo/Orange</material>
+  </gazebo>
+
+  <!-- ==================== 4 WHEELS ==================== -->
+  <!-- Rear wheels (DRIVE wheels - connected to diff_drive) -->
+  <xacro:wheel prefix="rear_left" x_pos="${rear_wheel_x}" y_reflect="1"/>
+  <xacro:wheel prefix="rear_right" x_pos="${rear_wheel_x}" y_reflect="-1"/>
+  
+  <!-- Front wheels (PASSIVE - free spinning) -->
+  <xacro:wheel prefix="front_left" x_pos="${front_wheel_x}" y_reflect="1"/>
+  <xacro:wheel prefix="front_right" x_pos="${front_wheel_x}" y_reflect="-1"/>
 
   <!-- ==================== 3-DOF ARM ==================== -->
   
@@ -111,7 +192,8 @@
   <joint name="arm_base_joint" type="revolute">
     <parent link="base_link"/>
     <child link="arm_base_link"/>
-    <origin xyz="0.1 0 ${chassis_height/2 + arm_base_height/2}" rpy="0 0 0"/>
+    <!-- Arm mounted toward the rear of chassis to avoid collision when moving -->
+    <origin xyz="-0.05 0 ${chassis_height/2 + arm_base_height/2}" rpy="0 0 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="-3.14159" upper="3.14159" effort="50" velocity="1.0"/>
     <dynamics damping="0.5" friction="0.1"/>
@@ -262,7 +344,7 @@
   <joint name="lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="lidar_link"/>
-    <origin xyz="-0.15 0 ${chassis_height/2 + lidar_height/2}" rpy="0 0 0"/>
+    <origin xyz="-0.18 0 ${chassis_height/2 + lidar_height/2}" rpy="0 0 0"/>
   </joint>
 
   <!-- ==================== CAMERA SENSOR ==================== -->
@@ -300,39 +382,58 @@
 
   <!-- ==================== GAZEBO PLUGINS ==================== -->
   <gazebo>
-    <!-- Planar Move Plugin for floating base control -->
-    <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
+    <!-- Differential Drive Plugin - uses REAR wheels -->
+    <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
       <ros>
         <namespace>/gcar</namespace>
         <remapping>cmd_vel:=cmd_vel</remapping>
         <remapping>odom:=odom</remapping>
       </ros>
-      <update_rate>50</update_rate>
-      <publish_rate>50</publish_rate>
+
+      <!-- REAR wheel joints for differential drive -->
+      <left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>rear_right_wheel_joint</right_joint>
+
+      <!-- Kinematics -->
+      <wheel_separation>${wheel_separation}</wheel_separation>
+      <wheel_diameter>${wheel_radius * 2}</wheel_diameter>
+
+      <!-- Limits -->
+      <max_wheel_torque>20</max_wheel_torque>
+      <max_wheel_acceleration>1.0</max_wheel_acceleration>
+
+      <!-- Odometry output -->
       <publish_odom>true</publish_odom>
       <publish_odom_tf>true</publish_odom_tf>
+      <publish_wheel_tf>true</publish_wheel_tf>
+
       <odometry_frame>odom</odometry_frame>
       <robot_base_frame>base_footprint</robot_base_frame>
+
+      <!-- Update rate -->
+      <update_rate>50</update_rate>
     </plugin>
 
-    <!-- Joint State Publisher -->
+    <!-- Joint State Publisher for ALL joints -->
     <plugin name="joint_state_publisher" filename="libgazebo_ros_joint_state_publisher.so">
       <ros>
         <namespace>/gcar</namespace>
         <remapping>joint_states:=joint_states</remapping>
       </ros>
       <update_rate>50</update_rate>
+      <!-- All 4 wheel joints -->
+      <joint_name>rear_left_wheel_joint</joint_name>
+      <joint_name>rear_right_wheel_joint</joint_name>
+      <joint_name>front_left_wheel_joint</joint_name>
+      <joint_name>front_right_wheel_joint</joint_name>
+      <!-- Arm joints -->
       <joint_name>arm_base_joint</joint_name>
       <joint_name>shoulder_joint</joint_name>
       <joint_name>elbow_joint</joint_name>
     </plugin>
   </gazebo>
 
-  <!-- Gazebo material colors -->
-  <gazebo reference="base_link">
-    <material>Gazebo/Orange</material>
-  </gazebo>
-
+  <!-- Gazebo material colors for arm -->
   <gazebo reference="arm_base_link">
     <material>Gazebo/DarkGrey</material>
   </gazebo>
@@ -458,4 +559,3 @@
   </gazebo>
 
 </robot>
-

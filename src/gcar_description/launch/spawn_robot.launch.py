@@ -25,10 +25,10 @@ def generate_launch_description():
     # Launch arguments
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     
-    # Spawn position - on the road near the intersection
+    # Spawn position - on the road near the intersection (z=0.1 to account for road surface)
     x_pose = LaunchConfiguration('x_pose', default='-5.0')
     y_pose = LaunchConfiguration('y_pose', default='0.0')
-    z_pose = LaunchConfiguration('z_pose', default='0.05')
+    z_pose = LaunchConfiguration('z_pose', default='0.1')
     yaw = LaunchConfiguration('yaw', default='0.0')
 
     declare_use_sim_time = DeclareLaunchArgument(
@@ -51,8 +51,8 @@ def generate_launch_description():
 
     declare_z_pose = DeclareLaunchArgument(
         'z_pose',
-        default_value='0.05',
-        description='Z position for spawning the robot'
+        default_value='0.1',
+        description='Z position for spawning the robot (accounts for road surface)'
     )
 
     declare_yaw = DeclareLaunchArgument(

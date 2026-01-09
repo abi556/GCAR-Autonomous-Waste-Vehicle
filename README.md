@@ -124,7 +124,7 @@ source install/setup.bash
 ros2 topic pub /gcar/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
 ```
 
-- **What it does**: Publishes a forward velocity command so the floating chassis slides forward in Gazebo (no wheels, planar motion).
+- **What it does**: Publishes a forward velocity command so the robot drives forward using differential drive (wheels spin, robot moves like a tank/car).
 
 To stop the robot:
 
@@ -179,14 +179,20 @@ killall -9 gazebo gzserver gzclient
 ## Robot Description
 
 **GCAR Robot Features:**
-- **Chassis:** Floating box (0.5m × 0.3m × 0.2m) with planar move plugin
-- **Drive:** `cmd_vel` control via `libgazebo_ros_planar_move.so`
+- **Chassis:** Rectangular box (0.5m × 0.3m × 0.15m) raised above ground on wheels
+- **Drive:** Differential drive with two rear drive wheels + front caster wheel
+- **Control:** `cmd_vel` via `libgazebo_ros_diff_drive.so` plugin
 - **Arm:** 3-DOF articulated arm (base rotation, shoulder pitch, elbow pitch)
 - **Gripper:** Vacuum-style gripper at end effector
 - **Sensors:**
   - LiDAR (360° scan, 10m range) on `/gcar/scan`
   - RGB Camera (640×480) on `/gcar/camera/image_raw`
   - Depth Camera on `/gcar/depth/image_raw`
+
+**Wheel Configuration:**
+- **Rear Wheels:** 2× drive wheels (radius 0.06m) connected to diff_drive
+- **Front Wheels:** 2× passive wheels (radius 0.06m) free-spinning
+- **Wheel Separation:** 0.34m between left and right wheels
 
 **ROS Topics:**
 | Topic | Type | Description |
