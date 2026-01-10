@@ -17,6 +17,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Point
 import math
 import time
 
@@ -67,6 +68,9 @@ class PickupCoordinator(Node):
             self.odom_callback,
             10
         )
+        
+        # Publisher for navigation targets
+        self.nav_target_pub = self.create_publisher(Point, '/nav/target', 10)
         
         # Service clients (created when needed)
         self.arm_home_client = None
@@ -123,8 +127,35 @@ class PickupCoordinator(Node):
         
         elif self.state == self.STATE_NAVIGATE_TO_BIN:
             self.get_logger().info('State: NAVIGATE_TO_BIN')
-            # In full implementation, would navigate to bin
-            time.sleep(2.0)
+            
+            # Get waste color and matching bin location
+            color = self.detected_waste_type.replace('_waste', '')  # 'red' or 'blue'
+            bin_location = self.bin_locations[color]
+            
+            self.get_logger().info(f'Driving to {color} bin at ({bin_location[0]:.2f}, {bin_location[1]:.2f})')
+            
+            # Publish navigation target
+            target_msg = Point()
+            target_msg.x = bin_location[0]
+            target_msg.y = bin_location[1]
+            target_msg.z = 0.0
+            self.nav_target_pub.publish(target_msg)
+            
+            # Wait for robot to reach bin (check distance)
+            while True:
+                distance_to_bin = math.sqrt(
+                    (self.robot_x - bin_location[0])**2 + 
+                    (self.robot_y - bin_location[1])**2
+                )
+                
+                if distance_to_bin < 1.0:  # Within 1 meter of bin
+                    self.get_logger().info(f'Arrived at {color} bin! Distance: {distance_to_bin:.2f}m')
+                    break
+                
+                # Log progress every 2 seconds
+                self.get_logger().info(f'Driving to bin... Distance remaining: {distance_to_bin:.2f}m')
+                time.sleep(2.0)
+            
             self.state = self.STATE_PLACE
         
         elif self.state == self.STATE_PLACE:

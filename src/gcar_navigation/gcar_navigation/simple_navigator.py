@@ -7,7 +7,7 @@ using simple proportional control with odometry feedback.
 
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Point
 from nav_msgs.msg import Odometry
 from std_srvs.srv import Trigger
 import math
@@ -47,15 +47,16 @@ class SimpleNavigator(Node):
         # Control timer (20 Hz)
         self.control_timer = self.create_timer(0.05, self.control_loop)
         
-        # Service to set target
-        self.srv_goto = self.create_service(
-            Trigger,
-            '/nav/goto_target',
-            self.goto_target_callback
+        # Subscribe to navigation target commands
+        self.target_sub = self.create_subscription(
+            Point,
+            '/nav/target',
+            self.target_callback,
+            10
         )
         
         self.get_logger().info('Simple Navigator Node Started')
-        self.get_logger().info('Service: /nav/goto_target')
+        self.get_logger().info('Listening for targets on: /nav/target')
     
     def odom_callback(self, msg):
         """Update robot position from odometry."""
@@ -68,22 +69,17 @@ class SimpleNavigator(Node):
         cosy_cosp = 1 - 2 * (quat.y * quat.y + quat.z * quat.z)
         self.robot_yaw = math.atan2(siny_cosp, cosy_cosp)
     
-    def goto_target_callback(self, request, response):
-        """Service callback to start navigation to target.
+    def target_callback(self, msg):
+        """Receive navigation target from topic.
         
-        For simplicity, target is hardcoded. In full implementation,
-        this would accept target coordinates as parameters.
+        Args:
+            msg: geometry_msgs/Point with x, y coordinates (z ignored)
         """
-        # Hardcoded target for testing (can be parameterized later)
-        self.target_x = 2.0
-        self.target_y = 2.0
-        
+        self.target_x = msg.x
+        self.target_y = msg.y
         self.navigating = True
-        self.get_logger().info(f'Navigating to ({self.target_x}, {self.target_y})')
-        
-        response.success = True
-        response.message = f'Started navigation to ({self.target_x}, {self.target_y})'
-        return response
+        self.get_logger().info(f'New navigation target: ({self.target_x:.2f}, {self.target_y:.2f})')
+        self.get_logger().info(f'Current position: ({self.robot_x:.2f}, {self.robot_y:.2f})')
     
     def control_loop(self):
         """Main control loop for navigation."""
