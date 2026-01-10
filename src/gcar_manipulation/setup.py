@@ -29,6 +29,7 @@ setup(
         'console_scripts': [
             'arm_controller = gcar_manipulation.arm_controller:main',
             'gazebo_manager = gcar_manipulation.gazebo_manager:main',
+            'pickup_coordinator = gcar_manipulation.pickup_coordinator:main',
         ],
     },
 )
