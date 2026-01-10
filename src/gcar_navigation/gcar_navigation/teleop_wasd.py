@@ -23,17 +23,20 @@ class TeleopWASD(Node):
         
         # Speed parameters
         self.linear_speed = 0.5  # m/s
-        self.angular_speed = 1.2  # rad/s (increased for better rotation)
+        self.angular_speed = 1.2  # rad/s
         
-        # Current velocity state
-        self.target_linear = 0.0
-        self.target_angular = 0.0
+        # Current pressed keys (for hold-to-move behavior)
+        self.keys_pressed = set()
         
         # Settings (will be set in run())
         self.settings = None
         
         # Publish rate (Hz)
-        self.publish_rate = 20.0  # Increased rate
+        self.publish_rate = 20.0
+        
+        # Key release timeout (if no key for this long, assume released)
+        self.key_timeout = 0.15  # seconds
+        self.last_key_time = 0.0
         
         self.get_logger().info('WASD Teleop Node Started')
         self.print_instructions()
@@ -41,14 +44,13 @@ class TeleopWASD(Node):
     def print_instructions(self):
         """Print control instructions."""
         print('\n' + '='*50)
-        print('GCAR WASD Teleop Controls')
+        print('GCAR WASD Teleop Controls - HOLD TO MOVE')
         print('='*50)
-        print('Movement (HOLD the key):')
-        print('  W - Forward')
-        print('  S - Backward')
-        print('  A - Rotate LEFT')
-        print('  D - Rotate RIGHT')
-        print('  X - Stop immediately')
+        print('Movement (Hold key to move, release to stop):')
+        print('  W - Forward (hold to move)')
+        print('  S - Backward (hold to move)')
+        print('  A - Rotate LEFT (hold to turn)')
+        print('  D - Rotate RIGHT (hold to turn)')
         print('\nSpeed Control:')
         print('  + / = - Increase linear speed')
         print('  - / _ - Decrease linear speed')
@@ -65,18 +67,12 @@ class TeleopWASD(Node):
             return sys.stdin.read(1)
         return None
 
-    def publish_velocity(self):
-        """Publish current velocity."""
-        msg = Twist()
-        msg.linear.x = self.target_linear
-        msg.angular.z = self.target_angular
-        self.publisher_.publish(msg)
-
     def run(self):
-        """Main teleop loop with continuous publishing.
-
-        Note: Key-repeat timing varies by OS/terminal. To make rotation reliable,
-        we *latch* the last command until you change it or press X to stop.
+        """Main teleop loop with hold-to-move behavior.
+        
+        Keys are tracked in real-time:
+        - Hold key down = robot moves
+        - Release key = robot stops
         """
         # Get terminal settings before modifying
         self.settings = termios.tcgetattr(sys.stdin)
@@ -94,6 +90,7 @@ class TeleopWASD(Node):
                 current_time = time.time()
                 
                 if key is not None:
+                    self.last_key_time = current_time
                     key_lower = key.lower()
                     
                     # CTRL-C to exit
@@ -114,23 +111,34 @@ class TeleopWASD(Node):
                         self.angular_speed = max(0.2, self.angular_speed - 0.1)
                         print(f'\rAngular: {self.angular_speed:.2f} rad/s   ', end='', flush=True)
                     
-                    # Movement keys (latched until another command / stop)
-                    elif key_lower == 'w':
-                        self.target_linear = self.linear_speed
-                    elif key_lower == 's':
-                        self.target_linear = -self.linear_speed
-                    elif key_lower == 'a':
-                        self.target_angular = self.angular_speed  # Positive = left
-                    elif key_lower == 'd':
-                        self.target_angular = -self.angular_speed  # Negative = right
-                    elif key_lower == 'x':
-                        self.target_linear = 0.0
-                        self.target_angular = 0.0
-                        print('\rSTOPPED                    ', end='', flush=True)
+                    # Movement keys - add to pressed keys set
+                    elif key_lower in ['w', 's', 'a', 'd']:
+                        self.keys_pressed.add(key_lower)
+                
+                # Check for key timeout (no keys received = all released)
+                if current_time - self.last_key_time > self.key_timeout:
+                    self.keys_pressed.clear()
+                
+                # Calculate velocity based on currently pressed keys
+                target_linear = 0.0
+                target_angular = 0.0
+                
+                if 'w' in self.keys_pressed:
+                    target_linear = self.linear_speed
+                elif 's' in self.keys_pressed:
+                    target_linear = -self.linear_speed
+                
+                if 'a' in self.keys_pressed:
+                    target_angular = self.angular_speed  # Positive = left
+                elif 'd' in self.keys_pressed:
+                    target_angular = -self.angular_speed  # Negative = right
                 
                 # Publish at fixed rate
                 if current_time - last_publish_time >= publish_interval:
-                    self.publish_velocity()
+                    msg = Twist()
+                    msg.linear.x = target_linear
+                    msg.angular.z = target_angular
+                    self.publisher_.publish(msg)
                     last_publish_time = current_time
                 
         except Exception as e:
@@ -139,9 +147,8 @@ class TeleopWASD(Node):
             # Restore terminal settings
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
             # Stop the robot
-            self.target_linear = 0.0
-            self.target_angular = 0.0
-            self.publish_velocity()
+            stop_msg = Twist()
+            self.publisher_.publish(stop_msg)
             print('\nTeleop stopped. Robot halted.')
 
 

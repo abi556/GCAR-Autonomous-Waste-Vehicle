@@ -254,18 +254,17 @@ Use WASD keyboard teleop to drive the robot and build a map:
 ros2 run gcar_navigation teleop_wasd
 ```
 
-**Controls:**
-- `W` - Move forward
-- `S` - Move backward
-- `A` - Turn left (rotate counter-clockwise)
-- `D` - Turn right (rotate clockwise)
+**Controls (Hold-to-Move):**
+- `W` - Move forward (hold key, release to stop)
+- `S` - Move backward (hold key, release to stop)
+- `A` - Turn left (hold key, release to stop)
+- `D` - Turn right (hold key, release to stop)
 - `W+A` - Move forward while turning left
 - `W+D` - Move forward while turning right
-- `Q` - Stop
 - `+` / `-` - Increase/decrease linear speed (10%)
 - `[` / `]` - Increase/decrease angular speed (10%)
 
-**Tip:** Hold keys for continuous movement. Adjust speeds with `+/-` and `[/]` if rotation feels too fast/slow.
+**Tip:** Robot moves ONLY while you hold the key down. Release to stop immediately. Adjust speeds with `+/-` and `[/]` if movement feels too fast/slow.
 
 ### Save the Map
 
