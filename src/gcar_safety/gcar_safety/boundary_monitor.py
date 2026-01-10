@@ -102,17 +102,21 @@ class BoundaryMonitor(Node):
             self.current_y < self.y_min or self.current_y > self.y_max):
             
             warning_msg = f"OUT OF BOUNDS! Position: ({self.current_x:.2f}, {self.current_y:.2f})"
-            self.get_logger().error(warning_msg)
             
-            # Publish warning
+            # Log error only on first detection (avoid spam)
+            if self.last_warning != warning_msg:
+                self.get_logger().error(warning_msg)
+                self.last_warning = warning_msg
+            
+            # Publish warning (every cycle while out of bounds)
             msg = String()
             msg.data = warning_msg
             self.warning_pub.publish(msg)
             
-            # Emergency stop if enabled
+            # Emergency stop if enabled - CONTINUOUSLY publish while out of bounds
+            # This overrides any other velocity commands (teleop, Nav2, etc.)
             if self.emergency_stop:
                 self.publish_stop()
-                self.get_logger().warn('Emergency stop issued!')
             
             return
         

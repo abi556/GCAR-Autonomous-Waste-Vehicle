@@ -372,10 +372,12 @@ ros2 run gcar_safety boundary_monitor
 ```
 
 The node will:
-1. Monitor robot position continuously
+1. Monitor robot position continuously (5 Hz)
 2. Log warnings when approaching boundaries
 3. Publish warnings to `/gcar/safety/boundary_warning`
 4. Issue emergency stop if robot exceeds boundaries (default: enabled)
+   - Continuously publishes zero velocity at 5 Hz while out of bounds
+   - Overrides other velocity commands (teleop, Nav2, etc.)
 
 ### Monitor Boundary Warnings
 
