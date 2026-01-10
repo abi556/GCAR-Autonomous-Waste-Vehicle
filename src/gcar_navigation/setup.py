@@ -40,6 +40,7 @@ setup(
     entry_points={
         'console_scripts': [
             'teleop_wasd = gcar_navigation.teleop_wasd:main',
+            'simple_navigator = gcar_navigation.simple_navigator:main',
         ],
     },
 )
