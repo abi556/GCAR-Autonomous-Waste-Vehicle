@@ -24,7 +24,7 @@ class ArmController(Node):
     # Angles in radians, tuned for robot geometry (arm base 0.25m above ground)
     POSES = {
         'home': [0.0, 0.0, 0.0],                    # Stowed upright position (all joints straight)
-        'pick_side': [1.57, -1.35, -1.25],          # Rotate 90° right, reach down to ground level
+        'pick_front': [0.0, -1.35, -1.25],          # Face FORWARD, reach down where camera detects waste
         'place_internal': [0.0, 0.65, 0.85],        # Face forward, reach over chassis to drop waste
         'place_bin': [1.57, 0.3, 0.4],              # Rotate 90° right, reach out ~0.5m high to drop into bin
     }
@@ -74,7 +74,7 @@ class ArmController(Node):
         self.get_logger().info('Arm Controller Node Started')
         self.get_logger().info('Available services:')
         self.get_logger().info('  - /arm/go_home      : Move to HOME pose')
-        self.get_logger().info('  - /arm/go_pick      : Move to PICK_SIDE pose')
+        self.get_logger().info('  - /arm/go_pick      : Move to PICK_FRONT pose (where camera detects)')
         self.get_logger().info('  - /arm/go_place     : Move to PLACE_INTERNAL pose')
         self.get_logger().info('  - /arm/go_place_bin : Move to PLACE_BIN pose (drop into world bins)')
         
@@ -93,12 +93,12 @@ class ArmController(Node):
         return response
     
     def go_pick_callback(self, request, response):
-        """Service callback to move arm to PICK_SIDE position."""
-        self.get_logger().info('Moving arm to PICK_SIDE position...')
-        success = self.move_to_pose('pick_side', duration=4.0)
+        """Service callback to move arm to PICK_FRONT position."""
+        self.get_logger().info('Moving arm to PICK_FRONT position (where camera sees waste)...')
+        success = self.move_to_pose('pick_front', duration=4.0)
         
         response.success = success
-        response.message = 'Moved to PICK_SIDE' if success else 'Failed to move to PICK_SIDE'
+        response.message = 'Moved to PICK_FRONT' if success else 'Failed to move to PICK_FRONT'
         return response
     
     def go_place_callback(self, request, response):
