@@ -22,9 +22,10 @@ class ArmController(Node):
     
     # Preset joint positions [arm_base_joint, shoulder_joint, elbow_joint]
     # Angles in radians, tuned for robot geometry (arm base 0.25m above ground)
+    # POSITIVE shoulder/elbow angles = reach forward and down
     POSES = {
         'home': [0.0, 0.0, 0.0],                    # Stowed upright position (all joints straight)
-        'pick_front': [0.0, -1.35, -1.25],          # Face FORWARD, reach down where camera detects waste
+        'pick_front': [0.0, 1.35, 1.25],            # FIXED: POSITIVE angles to reach FORWARD where camera sees
         'place_internal': [0.0, 0.65, 0.85],        # Face forward, reach over chassis to drop waste
         'place_bin': [1.57, 0.3, 0.4],              # Rotate 90° right, reach out ~0.5m high to drop into bin
     }
@@ -120,14 +121,14 @@ class ArmController(Node):
         return response
     
     def move_to_pose(self, pose_name, duration=3.0):
-        """Move arm to a preset pose.
+        """Move arm to a preset pose using fire-and-forget approach.
         
         Args:
             pose_name: Name of the preset pose ('home', 'pick_side', 'place_internal')
             duration: Time in seconds to complete the motion
             
         Returns:
-            bool: True if motion succeeded, False otherwise
+            bool: True if goal was sent successfully, False otherwise
         """
         if pose_name not in self.POSES:
             self.get_logger().error(f'Unknown pose: {pose_name}')
@@ -151,40 +152,13 @@ class ArmController(Node):
         trajectory.points.append(point)
         goal_msg.trajectory = trajectory
         
-        # Send goal and wait for result
+        # Send goal without waiting (fire-and-forget)
+        # The action server will execute it, and coordinator will sleep to wait
         self.get_logger().info(f'Sending trajectory to {pose_name}: {target_positions}')
-        send_goal_future = self.action_client.send_goal_async(goal_msg)
+        self.action_client.send_goal_async(goal_msg)
         
-        rclpy.spin_until_future_complete(self, send_goal_future, timeout_sec=2.0)
-        
-        if not send_goal_future.done():
-            self.get_logger().error('Failed to send goal (timeout)')
-            return False
-        
-        goal_handle = send_goal_future.result()
-        
-        if not goal_handle.accepted:
-            self.get_logger().error('Goal rejected by action server')
-            return False
-        
-        self.get_logger().info('Goal accepted, waiting for result...')
-        
-        # Wait for trajectory execution to complete
-        result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, result_future, timeout_sec=duration + 2.0)
-        
-        if not result_future.done():
-            self.get_logger().error('Trajectory execution timeout')
-            return False
-        
-        result = result_future.result()
-        
-        if result.result.error_code == 0:
-            self.get_logger().info(f'Successfully moved to {pose_name}')
-            return True
-        else:
-            self.get_logger().error(f'Trajectory failed with error code: {result.result.error_code}')
-            return False
+        # Return True immediately - the coordinator will handle timing
+        return True
 
 
 def main(args=None):

@@ -88,11 +88,15 @@ class PickupCoordinator(Node):
     
     def waste_callback(self, msg):
         """Handle waste detection."""
-        if self.state == self.STATE_IDLE:
-            self.detected_waste_type = msg.data  # 'red_waste' or 'blue_waste'
-            color = self.detected_waste_type.replace('_waste', '')
-            self.get_logger().info(f'Detected {self.detected_waste_type}! Starting pickup workflow...')
-            self.state = self.STATE_APPROACH_WASTE
+        # CRITICAL: Only start new workflow if currently IDLE
+        if self.state != self.STATE_IDLE:
+            # Already processing a workflow, ignore new detections
+            return
+        
+        self.detected_waste_type = msg.data  # 'red_waste' or 'blue_waste'
+        color = self.detected_waste_type.replace('_waste', '')
+        self.get_logger().info(f'Detected {self.detected_waste_type}! Starting pickup workflow...')
+        self.state = self.STATE_APPROACH_WASTE
     
     def state_machine_step(self):
         """Main state machine loop."""

@@ -66,6 +66,11 @@ class WasteDetector(Node):
         # If robot is within this distance to a bin, detected color is the bin itself
         self.bin_proximity_threshold = 3.5  # meters (increased to avoid boundary confusion)
         
+        # Track last detected waste to prevent spam
+        # Key: (waste_type, approx_x, approx_y), Value: timestamp
+        self.detected_waste_history = {}
+        self.waste_memory_duration = 30.0  # seconds - remember picked waste for this long
+        
         # Minimum contour area to consider (filters out noise)
         # Larger values = object must be closer to robot
         self.min_contour_area = 2500
@@ -101,7 +106,7 @@ class WasteDetector(Node):
         
         # Cooldown to prevent spam publishing
         self.last_detection_time = self.get_clock().now()
-        self.detection_cooldown = 1.0  # seconds
+        self.detection_cooldown = 2.0  # seconds - increased to prevent detection spam during pickup
         
         self.get_logger().info('Waste Detector Node Started')
         self.get_logger().info('Subscribed to: /gcar/camera/image_raw, /gcar/odom')
@@ -309,6 +314,29 @@ class WasteDetector(Node):
             time_diff = (current_time - self.last_detection_time).nanoseconds / 1e9
             if time_diff < self.detection_cooldown:
                 return
+        
+        # Check if we've recently detected waste at this location (prevent re-detection of picked waste)
+        # Round position to 1m grid to create memory key
+        waste_key = (waste_type, round(self.robot_x), round(self.robot_y))
+        current_timestamp = time.time()
+        
+        # Clean old entries from history
+        keys_to_remove = []
+        for key, timestamp in self.detected_waste_history.items():
+            if current_timestamp - timestamp > self.waste_memory_duration:
+                keys_to_remove.append(key)
+        for key in keys_to_remove:
+            del self.detected_waste_history[key]
+        
+        # Check if this waste was recently detected at this location
+        if waste_key in self.detected_waste_history:
+            time_since_detection = current_timestamp - self.detected_waste_history[waste_key]
+            if time_since_detection < self.waste_memory_duration:
+                # Already detected this waste recently, skip
+                return
+        
+        # Record this detection
+        self.detected_waste_history[waste_key] = current_timestamp
 
         msg = String()
         msg.data = waste_type
