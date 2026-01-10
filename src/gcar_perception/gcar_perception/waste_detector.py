@@ -64,7 +64,7 @@ class WasteDetector(Node):
         
         # Distance threshold to consider detected object as a bin (not waste)
         # If robot is within this distance to a bin, detected color is the bin itself
-        self.bin_proximity_threshold = 3.0  # meters
+        self.bin_proximity_threshold = 3.5  # meters (increased to avoid boundary confusion)
         
         # Minimum contour area to consider (filters out noise)
         # Larger values = object must be closer to robot
