@@ -343,6 +343,72 @@ Place red or blue bins in front of the robot's camera to trigger detections.
 - Red: H(0-10, 160-180), S(100-255), V(100-255)
 - Blue: H(95-135), S(80-255), V(60-255)
 
+## Safety & Boundary Monitoring
+
+The `gcar_safety` package provides operational boundary enforcement to keep the robot within safe limits.
+
+### Boundary Monitor
+
+The boundary monitor tracks the robot's position and prevents it from leaving the operational area (city boundaries).
+
+**Features:**
+- Monitors robot position from `/gcar/odom`
+- Warns when approaching boundaries (within 5m)
+- Emergency stop when out of bounds (optional)
+- Configurable boundary limits
+
+**Default Operational Area:**
+- X: -32m to +32m
+- Y: -32m to +32m
+- Total: 64m × 64m (covers entire city)
+
+### Run Boundary Monitor
+
+With the simulation running:
+
+```bash
+# Terminal: Start boundary monitoring
+ros2 run gcar_safety boundary_monitor
+```
+
+The node will:
+1. Monitor robot position continuously
+2. Log warnings when approaching boundaries
+3. Publish warnings to `/gcar/safety/boundary_warning`
+4. Issue emergency stop if robot exceeds boundaries (default: enabled)
+
+### Monitor Boundary Warnings
+
+```bash
+# Check boundary warnings
+ros2 topic echo /gcar/safety/boundary_warning
+```
+
+### Configure Boundaries
+
+You can adjust boundaries by setting parameters:
+
+```bash
+ros2 run gcar_safety boundary_monitor \
+  --ros-args \
+  -p x_min:=-40.0 \
+  -p x_max:=40.0 \
+  -p y_min:=-40.0 \
+  -p y_max:=40.0 \
+  -p warning_margin:=8.0 \
+  -p emergency_stop:=true
+```
+
+**Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `x_min` | -32.0 | Minimum X coordinate (meters) |
+| `x_max` | 32.0 | Maximum X coordinate (meters) |
+| `y_min` | -32.0 | Minimum Y coordinate (meters) |
+| `y_max` | 32.0 | Maximum Y coordinate (meters) |
+| `warning_margin` | 5.0 | Distance from boundary to start warning (meters) |
+| `emergency_stop` | true | Stop robot if out of bounds |
+
 ## Project Structure
 
 ```
@@ -362,6 +428,8 @@ gcar_ws/
 │   │   └── rviz/             # Nav2 RViz config
 │   ├── gcar_perception/      # Waste detection using color thresholding
 │   │   └── gcar_perception/  # Python nodes (waste_detector.py)
+│   ├── gcar_safety/          # Boundary monitoring and safety systems
+│   │   └── gcar_safety/      # Python nodes (boundary_monitor.py)
 │   ├── gcar_manipulation/    # Arm control (planned)
 │   ├── gcar_planning/        # Mission planning (planned)
 │   └── gcar_bringup/         # System integration (planned)
