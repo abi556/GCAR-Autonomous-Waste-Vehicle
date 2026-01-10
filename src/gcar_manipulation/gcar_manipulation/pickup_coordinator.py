@@ -44,6 +44,10 @@ class PickupCoordinator(Node):
         self.robot_x = 0.0
         self.robot_y = 0.0
         
+        # Navigation state tracking
+        self.navigation_target = None  # (x, y) tuple when navigating
+        self.last_nav_log_time = 0.0
+        
         # Waste and bin locations (hardcoded for simplicity)
         self.waste_locations = {
             'red': (1.5, 1.0),
@@ -109,11 +113,15 @@ class PickupCoordinator(Node):
             pass
         
         elif self.state == self.STATE_APPROACH_WASTE:
-            self.get_logger().info('State: APPROACH_WASTE')
-            # In full implementation, would call simple_navigator service
-            # For now, just wait and assume we're close
-            time.sleep(2.0)
-            self.state = self.STATE_PICKUP
+            # Simple approach: just wait a bit for robot to get closer
+            # In full implementation, could navigate to waste position
+            if not hasattr(self, '_approach_start_time'):
+                self.get_logger().info('State: APPROACH_WASTE')
+                self._approach_start_time = time.time()
+            
+            if time.time() - self._approach_start_time >= 2.0:
+                delattr(self, '_approach_start_time')
+                self.state = self.STATE_PICKUP
         
         elif self.state == self.STATE_PICKUP:
             self.get_logger().info('State: PICKUP (arm down + delete model)')
@@ -126,37 +134,41 @@ class PickupCoordinator(Node):
             self.state = self.STATE_NAVIGATE_TO_BIN
         
         elif self.state == self.STATE_NAVIGATE_TO_BIN:
-            self.get_logger().info('State: NAVIGATE_TO_BIN')
-            
-            # Get waste color and matching bin location
-            color = self.detected_waste_type.replace('_waste', '')  # 'red' or 'blue'
-            bin_location = self.bin_locations[color]
-            
-            self.get_logger().info(f'Driving to {color} bin at ({bin_location[0]:.2f}, {bin_location[1]:.2f})')
-            
-            # Publish navigation target
-            target_msg = Point()
-            target_msg.x = bin_location[0]
-            target_msg.y = bin_location[1]
-            target_msg.z = 0.0
-            self.nav_target_pub.publish(target_msg)
-            
-            # Wait for robot to reach bin (check distance)
-            while True:
-                distance_to_bin = math.sqrt(
-                    (self.robot_x - bin_location[0])**2 + 
-                    (self.robot_y - bin_location[1])**2
-                )
+            # Initialize navigation on first entry
+            if self.navigation_target is None:
+                color = self.detected_waste_type.replace('_waste', '')  # 'red' or 'blue'
+                bin_location = self.bin_locations[color]
+                self.navigation_target = bin_location
+                self.last_nav_log_time = time.time()
                 
-                if distance_to_bin < 1.0:  # Within 1 meter of bin
-                    self.get_logger().info(f'Arrived at {color} bin! Distance: {distance_to_bin:.2f}m')
-                    break
+                self.get_logger().info(f'State: NAVIGATE_TO_BIN')
+                self.get_logger().info(f'Driving to {color} bin at ({bin_location[0]:.2f}, {bin_location[1]:.2f})')
                 
-                # Log progress every 2 seconds
+                # Publish navigation target
+                target_msg = Point()
+                target_msg.x = bin_location[0]
+                target_msg.y = bin_location[1]
+                target_msg.z = 0.0
+                self.nav_target_pub.publish(target_msg)
+            
+            # Check if robot has reached bin (non-blocking)
+            distance_to_bin = math.sqrt(
+                (self.robot_x - self.navigation_target[0])**2 + 
+                (self.robot_y - self.navigation_target[1])**2
+            )
+            
+            # Log progress every 2 seconds
+            current_time = time.time()
+            if current_time - self.last_nav_log_time >= 2.0:
                 self.get_logger().info(f'Driving to bin... Distance remaining: {distance_to_bin:.2f}m')
-                time.sleep(2.0)
+                self.last_nav_log_time = current_time
             
-            self.state = self.STATE_PLACE
+            # Check if arrived
+            if distance_to_bin < 1.0:  # Within 1 meter of bin
+                color = self.detected_waste_type.replace('_waste', '')
+                self.get_logger().info(f'Arrived at {color} bin! Distance: {distance_to_bin:.2f}m')
+                self.navigation_target = None  # Reset for next navigation
+                self.state = self.STATE_PLACE
         
         elif self.state == self.STATE_PLACE:
             self.get_logger().info('State: PLACE (arm to bin + spawn model)')
