@@ -317,8 +317,8 @@ class WasteDetector(Node):
                 return
         
         # Check if we've recently detected waste at this location (prevent re-detection of picked waste)
-        # Round position to 1m grid to create memory key
-        waste_key = (waste_type, round(self.robot_x), round(self.robot_y))
+        # Round position to 2m grid to create memory key (larger grid = less sensitive)
+        waste_key = (waste_type, round(self.robot_x / 2.0) * 2, round(self.robot_y / 2.0) * 2)
         current_timestamp = time.time()
         
         # Clean old entries from history
@@ -330,11 +330,14 @@ class WasteDetector(Node):
             del self.detected_waste_history[key]
         
         # Check if this waste was recently detected at this location
+        # BUT: Allow re-detection after 5 seconds (in case pickup failed)
         if waste_key in self.detected_waste_history:
             time_since_detection = current_timestamp - self.detected_waste_history[waste_key]
-            if time_since_detection < self.waste_memory_duration:
-                # Already detected this waste recently, skip
+            if time_since_detection < 5.0:  # Reduced from 30s to 5s - allow retry if pickup fails
+                # Already detected this waste very recently, skip
+                self.get_logger().debug(f'Skipping detection - detected {time_since_detection:.1f}s ago at this location')
                 return
+            # If > 5 seconds, allow re-detection (maybe pickup failed, or robot moved)
         
         # Record this detection
         self.detected_waste_history[waste_key] = current_timestamp

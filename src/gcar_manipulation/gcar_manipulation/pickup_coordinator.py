@@ -114,19 +114,24 @@ class PickupCoordinator(Node):
         # CRITICAL: Only start new workflow if currently IDLE
         if self.state != self.STATE_IDLE:
             # Already processing a workflow, ignore new detections
+            self.get_logger().debug(f'Ignoring detection - already in state: {self.state}')
             return
         
         self.detected_waste_type = msg.data  # 'red_waste' or 'blue_waste'
         color = self.detected_waste_type.replace('_waste', '')
         
-        # Get waste position from hardcoded locations
-        if color in self.waste_locations:
-            self.waste_position = self.waste_locations[color]
-        else:
-            # Fallback: use current robot position (shouldn't happen)
-            self.waste_position = (self.robot_x, self.robot_y)
+        # Use robot's CURRENT position + small forward offset (waste is detected in front of robot)
+        # Camera is front-facing, so waste is approximately 0.5-1.0m in front
+        forward_offset = 0.8  # meters in front of robot
+        self.waste_position = (
+            self.robot_x + forward_offset * math.cos(self.robot_yaw),
+            self.robot_y + forward_offset * math.sin(self.robot_yaw)
+        )
         
-        self.get_logger().info(f'Detected {self.detected_waste_type} at {self.waste_position}! Starting pickup workflow...')
+        self.get_logger().info(f'Detected {self.detected_waste_type}!')
+        self.get_logger().info(f'Robot at: ({self.robot_x:.2f}, {self.robot_y:.2f}), yaw: {self.robot_yaw:.2f}')
+        self.get_logger().info(f'Estimated waste position: ({self.waste_position[0]:.2f}, {self.waste_position[1]:.2f})')
+        self.get_logger().info('Starting pickup workflow...')
         self.state = self.STATE_APPROACH_WASTE
         self.pickup_success = False  # Reset pickup status
     
@@ -151,26 +156,40 @@ class PickupCoordinator(Node):
             # Rotate robot to face waste before picking
             if self.waste_position is None:
                 # Skip alignment if no waste position
+                self.get_logger().warn('No waste position! Skipping alignment.')
                 self.state = self.STATE_PICKUP
                 return
             
+            if not hasattr(self, '_align_start_time'):
+                self.get_logger().info('State: ALIGN_TO_WASTE')
+                self._align_start_time = time.time()
+            
             dx = self.waste_position[0] - self.robot_x
             dy = self.waste_position[1] - self.robot_y
+            distance = math.sqrt(dx*dx + dy*dy)
             target_angle = math.atan2(dy, dx)
             
             # Calculate angle difference
             angle_diff = target_angle - self.robot_yaw
             angle_diff = math.atan2(math.sin(angle_diff), math.cos(angle_diff))
             
-            # If aligned (within 0.15 rad ~ 8.6 degrees), proceed to pickup
-            if abs(angle_diff) < 0.15:
-                self.get_logger().info('Aligned to waste! Proceeding to pickup.')
+            # Log alignment progress every 2 seconds
+            if time.time() - self._align_start_time >= 2.0:
+                self.get_logger().info(f'Aligning... angle_diff: {math.degrees(abs(angle_diff)):.1f}°, distance: {distance:.2f}m')
+                self._align_start_time = time.time()
+            
+            # If aligned (within 0.2 rad ~ 11.5 degrees) OR very close, proceed to pickup
+            if abs(angle_diff) < 0.2 or distance < 0.5:
+                self.get_logger().info(f'Aligned to waste! Angle diff: {math.degrees(abs(angle_diff)):.1f}°, Distance: {distance:.2f}m')
                 self.stop_robot()
+                if hasattr(self, '_align_start_time'):
+                    delattr(self, '_align_start_time')
                 self.state = self.STATE_PICKUP
             else:
                 # Rotate towards waste
                 twist = Twist()
-                twist.angular.z = 0.3 if angle_diff > 0 else -0.3  # Smooth rotation
+                angular_speed = 0.4 if abs(angle_diff) > 0.3 else 0.2  # Slower when close
+                twist.angular.z = angular_speed if angle_diff > 0 else -angular_speed
                 self.cmd_vel_pub.publish(twist)
         
         elif self.state == self.STATE_PICKUP:
