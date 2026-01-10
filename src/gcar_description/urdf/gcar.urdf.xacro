@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="gcar">
 
+  <!-- Xacro arguments -->
+  <xacro:arg name="controller_config_file" default=""/>
+
   <!-- ==================== PROPERTIES ==================== -->
   <!-- Chassis -->
   <xacro:property name="chassis_length" value="0.5"/>
@@ -598,7 +601,10 @@
   <!-- Load ros2_control plugin for Gazebo -->
   <gazebo>
     <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
-      <parameters>$(find gcar_description)/config/arm_controllers.yaml</parameters>
+      <ros>
+        <namespace>/gcar</namespace>
+      </ros>
+      <parameters>$(arg controller_config_file)</parameters>
     </plugin>
   </gazebo>
 

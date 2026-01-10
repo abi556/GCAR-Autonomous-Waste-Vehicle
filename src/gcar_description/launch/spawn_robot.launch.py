@@ -21,6 +21,7 @@ def generate_launch_description():
 
     # Paths to files
     urdf_file = os.path.join(pkg_gcar_description, 'urdf', 'gcar.urdf.xacro')
+    controller_config = os.path.join(pkg_gcar_description, 'config', 'arm_controllers.yaml')
 
     # Launch arguments
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
@@ -62,9 +63,9 @@ def generate_launch_description():
         description='Yaw orientation for spawning the robot'
     )
 
-    # Robot description from xacro
+    # Robot description from xacro (pass controller config as argument)
     robot_description = ParameterValue(
-        Command(['xacro ', urdf_file]),
+        Command(['xacro ', urdf_file, ' controller_config_file:=', controller_config]),
         value_type=str
     )
 
