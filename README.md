@@ -411,6 +411,85 @@ ros2 run gcar_safety boundary_monitor \
 | `warning_margin` | 5.0 | Distance from boundary to start warning (meters) |
 | `emergency_stop` | true | Stop robot if out of bounds |
 
+## Arm Manipulation
+
+The `gcar_manipulation` package provides 3-DOF robotic arm control using ros2_control and joint trajectory controller.
+
+### Arm Specifications
+
+**3-DOF Arm Configuration:**
+- **Base Joint** (arm_base_joint): Z-axis rotation (±180°)
+- **Shoulder Joint** (shoulder_joint): Y-axis pitch (±90°)
+- **Elbow Joint** (elbow_joint): Y-axis pitch (±135°)
+
+### Preset Poses
+
+| Pose | Joint Angles [Base, Shoulder, Elbow] | Purpose |
+|------|--------------------------------------|---------|
+| **HOME** | [0.0, 0.0, 0.0] | Stowed/upright position |
+| **PICK_SIDE** | [1.57, 0.5, -0.5] | Pick waste from ground next to robot |
+| **PLACE_INTERNAL** | [0.0, -1.0, 1.0] | Drop waste into internal collection box |
+
+### Run Arm Control
+
+With the simulation running:
+
+```bash
+# Terminal 1: Launch simulation (if not already running)
+ros2 launch gcar_description spawn_robot.launch.py
+
+# Terminal 2: Start arm controllers and arm controller node
+ros2 launch gcar_manipulation arm_control_simple.launch.py
+```
+
+The launch file will:
+1. Spawn joint_state_broadcaster (publishes joint states)
+2. Spawn arm_controller (joint trajectory controller)
+3. Start arm_controller_node (provides preset pose services)
+
+### Control Arm via Services
+
+Use ROS 2 services to move the arm to preset poses:
+
+```bash
+# Move to HOME position (stowed)
+ros2 service call /arm/go_home std_srvs/srv/Trigger
+
+# Move to PICK_SIDE position
+ros2 service call /arm/go_pick std_srvs/srv/Trigger
+
+# Move to PLACE_INTERNAL position
+ros2 service call /arm/go_place std_srvs/srv/Trigger
+```
+
+**Response:**
+```yaml
+success: True
+message: 'Moved to HOME'
+```
+
+### Check Arm Joint States
+
+Monitor current joint positions:
+
+```bash
+# List all joint states
+ros2 topic echo /joint_states
+
+# Monitor arm controller status
+ros2 topic list | grep arm
+```
+
+### Available Topics
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/joint_states` | `sensor_msgs/JointState` | Current joint positions/velocities |
+| `/gcar/arm_controller/follow_joint_trajectory` | Action | Joint trajectory action server |
+| `/arm/go_home` | Service | Move to HOME pose |
+| `/arm/go_pick` | Service | Move to PICK_SIDE pose |
+| `/arm/go_place` | Service | Move to PLACE_INTERNAL pose |
+
 ## Project Structure
 
 ```
@@ -432,7 +511,9 @@ gcar_ws/
 │   │   └── gcar_perception/  # Python nodes (waste_detector.py)
 │   ├── gcar_safety/          # Boundary monitoring and safety systems
 │   │   └── gcar_safety/      # Python nodes (boundary_monitor.py)
-│   ├── gcar_manipulation/    # Arm control (planned)
+│   ├── gcar_manipulation/    # Arm control with ros2_control and preset poses
+│   │   ├── gcar_manipulation/ # Python nodes (arm_controller.py)
+│   │   └── launch/           # Arm control launch files
 │   ├── gcar_planning/        # Mission planning (planned)
 │   └── gcar_bringup/         # System integration (planned)
 └── README.md
