@@ -33,11 +33,11 @@ class SimpleNavigator(Node):
         self.robot_y = 0.0
         self.robot_yaw = 0.0
         
-        # Navigation parameters
-        self.linear_speed = 0.3  # m/s
-        self.angular_speed = 0.5  # rad/s
-        self.position_tolerance = 0.2  # meters
-        self.angle_tolerance = 0.1  # radians
+        # Navigation parameters - INCREASED for faster, smoother movement
+        self.linear_speed = 0.8  # m/s (increased from 0.3)
+        self.angular_speed = 0.3  # rad/s (reduced from 0.5 for smoother rotation)
+        self.position_tolerance = 0.3  # meters (slightly increased for easier arrival)
+        self.angle_tolerance = 0.15  # radians (slightly increased)
         
         # Target position (set by service call)
         self.target_x = None
@@ -106,14 +106,16 @@ class SimpleNavigator(Node):
         # Proportional control
         twist = Twist()
         
-        # If facing wrong direction, rotate first
+        # If facing wrong direction, rotate first (with smoother rotation)
         if abs(angle_diff) > self.angle_tolerance:
-            twist.angular.z = self.angular_speed if angle_diff > 0 else -self.angular_speed
+            # Proportional angular control for smoother rotation
+            angular_gain = 0.8  # Reduced for smoother rotation
+            twist.angular.z = angular_gain * self.angular_speed if angle_diff > 0 else -angular_gain * self.angular_speed
             twist.linear.x = 0.0
         else:
-            # Move forward
-            twist.linear.x = min(self.linear_speed, distance)
-            twist.angular.z = 0.5 * angle_diff  # Small correction
+            # Move forward with smooth angular correction
+            twist.linear.x = min(self.linear_speed, distance * 0.5)  # Scale down near target
+            twist.angular.z = 0.3 * angle_diff  # Reduced correction gain for smoother movement
         
         self.cmd_vel_pub.publish(twist)
     

@@ -91,7 +91,7 @@
     <!-- NE Quadrant Sidewalk -->
     <model name="sidewalk_ne">
       <static>true</static>
-      <pose>15 15 0.05 0 0 0</pose>
+      <pose>15 15 0.01 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -113,7 +113,7 @@
     <!-- NW Quadrant Sidewalk -->
     <model name="sidewalk_nw">
       <static>true</static>
-      <pose>-15 15 0.05 0 0 0</pose>
+      <pose>-15 15 0.01 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -135,7 +135,7 @@
     <!-- SE Quadrant Sidewalk -->
     <model name="sidewalk_se">
       <static>true</static>
-      <pose>15 -15 0.05 0 0 0</pose>
+      <pose>15 -15 0.01 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -157,7 +157,7 @@
     <!-- SW Quadrant Sidewalk -->
     <model name="sidewalk_sw">
       <static>true</static>
-      <pose>-15 -15 0.05 0 0 0</pose>
+      <pose>-15 -15 0.01 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>

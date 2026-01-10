@@ -17,7 +17,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, Twist
 import math
 import time
 
@@ -28,6 +28,7 @@ class PickupCoordinator(Node):
     # State definitions
     STATE_IDLE = 'IDLE'
     STATE_APPROACH_WASTE = 'APPROACH_WASTE'
+    STATE_ALIGN_TO_WASTE = 'ALIGN_TO_WASTE'  # NEW: Face waste before picking
     STATE_PICKUP = 'PICKUP'
     STATE_NAVIGATE_TO_BIN = 'NAVIGATE_TO_BIN'
     STATE_PLACE = 'PLACE'
@@ -39,14 +40,22 @@ class PickupCoordinator(Node):
         # Current state
         self.state = self.STATE_IDLE
         self.detected_waste_type = None  # 'red_waste' or 'blue_waste'
+        self.waste_position = None  # (x, y) tuple of detected waste
         
-        # Robot position
+        # Robot position and orientation
         self.robot_x = 0.0
         self.robot_y = 0.0
+        self.robot_yaw = 0.0
         
         # Navigation state tracking
         self.navigation_target = None  # (x, y) tuple when navigating
         self.last_nav_log_time = 0.0
+        
+        # Pickup verification
+        self.pickup_success = False
+        
+        # Publisher for cmd_vel (for alignment rotation)
+        self.cmd_vel_pub = self.create_publisher(Twist, '/gcar/cmd_vel', 10)
         
         # Waste and bin locations (hardcoded for simplicity)
         self.waste_locations = {
@@ -90,9 +99,15 @@ class PickupCoordinator(Node):
         self.get_logger().info(f'State: {self.state}')
     
     def odom_callback(self, msg):
-        """Update robot position."""
+        """Update robot position and orientation."""
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
+        
+        # Extract yaw from quaternion
+        quat = msg.pose.pose.orientation
+        siny_cosp = 2 * (quat.w * quat.z + quat.x * quat.y)
+        cosy_cosp = 1 - 2 * (quat.y * quat.y + quat.z * quat.z)
+        self.robot_yaw = math.atan2(siny_cosp, cosy_cosp)
     
     def waste_callback(self, msg):
         """Handle waste detection."""
@@ -103,8 +118,17 @@ class PickupCoordinator(Node):
         
         self.detected_waste_type = msg.data  # 'red_waste' or 'blue_waste'
         color = self.detected_waste_type.replace('_waste', '')
-        self.get_logger().info(f'Detected {self.detected_waste_type}! Starting pickup workflow...')
+        
+        # Get waste position from hardcoded locations
+        if color in self.waste_locations:
+            self.waste_position = self.waste_locations[color]
+        else:
+            # Fallback: use current robot position (shouldn't happen)
+            self.waste_position = (self.robot_x, self.robot_y)
+        
+        self.get_logger().info(f'Detected {self.detected_waste_type} at {self.waste_position}! Starting pickup workflow...')
         self.state = self.STATE_APPROACH_WASTE
+        self.pickup_success = False  # Reset pickup status
     
     def state_machine_step(self):
         """Main state machine loop."""
@@ -121,17 +145,73 @@ class PickupCoordinator(Node):
             
             if time.time() - self._approach_start_time >= 2.0:
                 delattr(self, '_approach_start_time')
+                self.state = self.STATE_ALIGN_TO_WASTE
+        
+        elif self.state == self.STATE_ALIGN_TO_WASTE:
+            # Rotate robot to face waste before picking
+            if self.waste_position is None:
+                # Skip alignment if no waste position
                 self.state = self.STATE_PICKUP
+                return
+            
+            dx = self.waste_position[0] - self.robot_x
+            dy = self.waste_position[1] - self.robot_y
+            target_angle = math.atan2(dy, dx)
+            
+            # Calculate angle difference
+            angle_diff = target_angle - self.robot_yaw
+            angle_diff = math.atan2(math.sin(angle_diff), math.cos(angle_diff))
+            
+            # If aligned (within 0.15 rad ~ 8.6 degrees), proceed to pickup
+            if abs(angle_diff) < 0.15:
+                self.get_logger().info('Aligned to waste! Proceeding to pickup.')
+                self.stop_robot()
+                self.state = self.STATE_PICKUP
+            else:
+                # Rotate towards waste
+                twist = Twist()
+                twist.angular.z = 0.3 if angle_diff > 0 else -0.3  # Smooth rotation
+                self.cmd_vel_pub.publish(twist)
         
         elif self.state == self.STATE_PICKUP:
-            self.get_logger().info('State: PICKUP (arm down + delete model)')
-            # Call arm service to lower
-            self._call_arm_pick()
-            time.sleep(3.0)
-            # Call Gazebo service to delete waste
-            self._call_gazebo_pickup()
-            time.sleep(1.0)
-            self.state = self.STATE_NAVIGATE_TO_BIN
+            if not hasattr(self, '_pickup_start_time'):
+                self.get_logger().info('State: PICKUP (arm down + delete model)')
+                self._pickup_start_time = time.time()
+                self._arm_pick_called = False
+                self._gazebo_pickup_called = False
+                self.pickup_success = False
+            
+            elapsed = time.time() - self._pickup_start_time
+            
+            # Call arm service after 0.5s
+            if elapsed >= 0.5 and not self._arm_pick_called:
+                self._call_arm_pick()
+                self._arm_pick_called = True
+            
+            # Call Gazebo pickup service after 3.5s (arm should be down)
+            if elapsed >= 3.5 and not self._gazebo_pickup_called:
+                success = self._call_gazebo_pickup_sync()
+                self.pickup_success = success
+                self._gazebo_pickup_called = True
+                if not success:
+                    self.get_logger().error('Pickup FAILED! Waste not deleted. Aborting workflow.')
+                    self.state = self.STATE_IDLE
+                    self.detected_waste_type = None
+                    self.waste_position = None
+                    return
+            
+            # Wait for arm to complete and verify pickup
+            if elapsed >= 4.5:
+                if self.pickup_success:
+                    self.get_logger().info('Pickup successful! Proceeding to bin.')
+                    delattr(self, '_pickup_start_time')
+                    self.state = self.STATE_NAVIGATE_TO_BIN
+                else:
+                    self.get_logger().error('Pickup verification failed. Aborting.')
+                    delattr(self, '_pickup_start_time')
+                    self.state = self.STATE_IDLE
+                    self.detected_waste_type = None
+                    self.waste_position = None
         
         elif self.state == self.STATE_NAVIGATE_TO_BIN:
             # Initialize navigation on first entry
@@ -187,6 +267,8 @@ class PickupCoordinator(Node):
             self.get_logger().info('Workflow complete! Returning to IDLE.')
             self.state = self.STATE_IDLE
             self.detected_waste_type = None
+            self.waste_position = None
+            self.pickup_success = False
     
     def _call_arm_home(self):
         """Call arm home service."""
@@ -219,7 +301,7 @@ class PickupCoordinator(Node):
             self.get_logger().info('Called /arm/go_place_bin')
     
     def _call_gazebo_pickup(self):
-        """Call Gazebo pickup service."""
+        """Call Gazebo pickup service (async)."""
         if self.gazebo_pickup_client is None:
             self.gazebo_pickup_client = self.create_client(Trigger, '/gazebo/pickup_waste')
         
@@ -227,6 +309,38 @@ class PickupCoordinator(Node):
             req = Trigger.Request()
             future = self.gazebo_pickup_client.call_async(req)
             self.get_logger().info('Called /gazebo/pickup_waste')
+    
+    def _call_gazebo_pickup_sync(self):
+        """Call Gazebo pickup service synchronously and return success."""
+        if self.gazebo_pickup_client is None:
+            self.gazebo_pickup_client = self.create_client(Trigger, '/gazebo/pickup_waste')
+        
+        if not self.gazebo_pickup_client.wait_for_service(timeout_sec=2.0):
+            self.get_logger().error('Gazebo pickup service not available!')
+            return False
+        
+        req = Trigger.Request()
+        future = self.gazebo_pickup_client.call_async(req)
+        
+        # Wait for response (with timeout)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
+        
+        if future.done():
+            response = future.result()
+            if response and response.success:
+                self.get_logger().info('Gazebo pickup succeeded!')
+                return True
+            else:
+                self.get_logger().warn(f'Gazebo pickup failed: {response.message if response else "No response"}')
+                return False
+        else:
+            self.get_logger().error('Gazebo pickup service call timeout!')
+            return False
+    
+    def stop_robot(self):
+        """Stop robot movement."""
+        twist = Twist()
+        self.cmd_vel_pub.publish(twist)
     
     def _call_gazebo_place(self):
         """Call Gazebo place service."""
