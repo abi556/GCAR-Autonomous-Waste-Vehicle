@@ -21,10 +21,11 @@ class ArmController(Node):
     """
     
     # Preset joint positions [arm_base_joint, shoulder_joint, elbow_joint]
+    # Angles in radians, tuned for robot geometry (arm base 0.25m above ground)
     POSES = {
-        'home': [0.0, 0.0, 0.0],                    # Stowed upright position
-        'pick_side': [1.57, 0.5, -0.5],             # Rotated to side, reaching down to ground
-        'place_internal': [0.0, -1.0, 1.0],         # Forward, dropping into internal collection box
+        'home': [0.0, 0.0, 0.0],                    # Stowed upright position (all joints straight)
+        'pick_side': [1.57, -1.35, -1.25],          # Rotate 90° right, reach down to ground level
+        'place_internal': [0.0, 0.65, 0.85],        # Face forward, reach over chassis to drop waste
     }
     
     def __init__(self):

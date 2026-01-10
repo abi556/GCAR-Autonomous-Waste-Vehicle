@@ -3,11 +3,13 @@
 
 import cv2
 import numpy as np
+import math
 
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
+from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge, CvBridgeError
 
 
@@ -32,12 +34,47 @@ class WasteDetector(Node):
             10
         )
         
+        # Subscriber to robot odometry (to know robot position for bin filtering)
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            '/gcar/odom',
+            self.odom_callback,
+            10
+        )
+        
         # Publisher for detected waste
         self.waste_pub = self.create_publisher(String, '/detected_waste', 10)
+        
+        # Robot's current position (updated by odometry)
+        self.robot_x = 0.0
+        self.robot_y = 0.0
+        
+        # Known bin locations in world frame (x, y)
+        # These are the ROADSIDE bins from city.world that robot can access
+        self.red_bin_locations = [
+            (3.5, 8.0),    # roadside_bin_red_1
+            (-3.5, -8.0),  # roadside_bin_red_2
+            (10.0, 3.5),   # roadside_bin_red_3
+        ]
+        self.blue_bin_locations = [
+            (3.5, 12.0),   # roadside_bin_blue_1
+            (-3.5, -12.0), # roadside_bin_blue_2
+            (-10.0, -3.5), # roadside_bin_blue_3
+        ]
+        
+        # Distance threshold to consider detected object as a bin (not waste)
+        # If robot is within this distance to a bin, detected color is the bin itself
+        self.bin_proximity_threshold = 3.0  # meters
         
         # Minimum contour area to consider (filters out noise)
         # Larger values = object must be closer to robot
         self.min_contour_area = 2500
+        
+        # Size threshold for noise filtering only
+        # Primary filtering is LOCATION-BASED (bins at known, fixed positions)
+        # If robot is near bin location → it's the bin
+        # If robot is NOT near bin → it's waste (regardless of size!)
+        self.min_bin_area = 10000     # pixels - minimum size to be considered a bin at known location
         
         # HSV color ranges for red (red wraps around in HSV, so two ranges)
         # Lower red range (0-10)
@@ -67,8 +104,31 @@ class WasteDetector(Node):
         self.detection_cooldown = 1.0  # seconds
         
         self.get_logger().info('Waste Detector Node Started')
-        self.get_logger().info('Subscribed to: /gcar/camera/image_raw')
+        self.get_logger().info('Subscribed to: /gcar/camera/image_raw, /gcar/odom')
         self.get_logger().info('Publishing to: /detected_waste')
+        self.get_logger().info(f'Bin proximity threshold: {self.bin_proximity_threshold}m')
+
+    def odom_callback(self, msg):
+        """Update robot position from odometry."""
+        self.robot_x = msg.pose.pose.position.x
+        self.robot_y = msg.pose.pose.position.y
+
+    def is_near_bin(self, color):
+        """Check if robot is near any bin of the specified color.
+        
+        Args:
+            color: 'red' or 'blue'
+            
+        Returns:
+            True if robot is within bin_proximity_threshold of a bin
+        """
+        bin_locations = self.red_bin_locations if color == 'red' else self.blue_bin_locations
+        
+        for bin_x, bin_y in bin_locations:
+            distance = math.sqrt((self.robot_x - bin_x)**2 + (self.robot_y - bin_y)**2)
+            if distance < self.bin_proximity_threshold:
+                return True
+        return False
 
     def image_callback(self, msg):
         """Process incoming camera images for waste detection."""
@@ -108,24 +168,77 @@ class WasteDetector(Node):
         if time_diff < self.detection_cooldown:
             return
         
-        # Decide label (prioritize larger/closer object)
+        # Classify detected objects as bins or waste
+        # Strategy: Size-based + location-based filtering
         label = None
+        
         if red_detected and blue_detected:
-            label = 'red_waste' if red_area >= blue_area else 'blue_waste'
+            # Both colors detected - prioritize larger one
+            if red_area >= blue_area:
+                label = self.classify_object('red', red_area)
+            else:
+                label = self.classify_object('blue', blue_area)
         elif red_detected:
-            label = 'red_waste'
+            label = self.classify_object('red', red_area)
         elif blue_detected:
-            label = 'blue_waste'
+            label = self.classify_object('blue', blue_area)
 
         if label is None:
             return
 
-        # De-spam: publish only if changed OR cooldown expired
-        if label != self.last_published:
-            self.publish_detection(label)
+        # Only publish WASTE detections, ignore bins
+        if label.endswith('_waste'):
+            # De-spam: publish only if changed OR cooldown expired
+            if label != self.last_published:
+                self.publish_detection(label)
+            else:
+                # same as last label; rely on cooldown to avoid spamming
+                self.publish_detection(label, force_cooldown=True)
+
+    def classify_object(self, color, area):
+        """Classify detected colored object as bin or waste.
+        
+        Strategy: LOCATION-BASED filtering ONLY (size only filters noise).
+        - Bins are at KNOWN, FIXED locations (hardcoded in is_near_bin)
+        - If robot is near bin location → it's the bin (ignore)
+        - If robot is NOT near bin → it's waste (detect!) regardless of size
+        
+        Args:
+            color: 'red' or 'blue'
+            area: contour area in pixels
+            
+        Returns:
+            'red_waste', 'blue_waste', 'red_bin', 'blue_bin', or None
+        """
+        # PRIMARY check: Is robot near a known bin of this color?
+        near_bin = self.is_near_bin(color)
+        
+        # Secondary check: Is object large enough (filters noise only)
+        is_large_enough = area > self.min_bin_area
+        
+        # Debug logging
+        self.get_logger().info(
+            f'Classify {color}: area={area:.0f}px, robot_pos=({self.robot_x:.2f},{self.robot_y:.2f}), '
+            f'near_bin={near_bin}, large={is_large_enough}'
+        )
+        
+        # SIMPLE LOGIC:
+        # 1. Near bin + large → it's the bin (ignore)
+        # 2. NOT near bin → it's waste! (regardless of size)
+        # 3. Near bin + small → noise (ignore)
+        
+        if near_bin and is_large_enough:
+            # Robot is near known bin location, sees large colored object = the bin itself
+            self.get_logger().info(f'→ Classified as {color}_bin (near known bin location)')
+            return f'{color}_bin'
+        elif not near_bin:
+            # Robot is NOT near any bin = WASTE (even if huge, it's just close-up waste!)
+            self.get_logger().info(f'→ Classified as {color}_waste (not near any bin)')
+            return f'{color}_waste'
         else:
-            # same as last label; rely on cooldown to avoid spamming
-            self.publish_detection(label, force_cooldown=True)
+            # Near bin but object too small (probably noise)
+            self.get_logger().info(f'→ Ignored (near bin but too small, likely noise)')
+            return None
 
     def detect_color(self, hsv_image, color_ranges, w, h):
         """Detect objects of specified color(s).
