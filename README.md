@@ -221,8 +221,7 @@ killall -9 gazebo gzserver gzclient
 | Color  | Type           | Locations                    |
 |--------|----------------|------------------------------|
 | 🔴 Red    | General Waste  | Near office, residential, warehouse |
-| 🟢 Green  | Recycling      | Near office, apartment       |
-| 🔵 Blue   | Paper          | Near residential             |
+| 🔵 Blue   | Recycling      | Near office, apartment, residential |
 | 🟡 Yellow | Metal          | Near warehouse               |
 | 🟤 Brown  | Organic        | Near community center        |
 
@@ -336,8 +335,9 @@ Place red or blue bins in front of the robot's camera to trigger detections.
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| `min_contour_area` | 500 px² | Minimum object size to detect |
-| `detection_cooldown` | 0.5 s | Time between consecutive detections |
+| `min_contour_area` | 2500 px² | Minimum object size to detect |
+| `min_image_coverage` | 1.5% | Minimum percentage of image (ensures close proximity) |
+| `detection_cooldown` | 1.0 s | Time between consecutive detections |
 
 **HSV Color Ranges (OpenCV HSV):**
 - Red: H(0-10, 160-180), S(100-255), V(100-255)

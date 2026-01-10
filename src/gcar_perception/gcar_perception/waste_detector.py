@@ -37,7 +37,7 @@ class WasteDetector(Node):
         
         # Minimum contour area to consider (filters out noise)
         # Larger values = object must be closer to robot
-        self.min_contour_area = 500
+        self.min_contour_area = 2500
         
         # HSV color ranges for red (red wraps around in HSV, so two ranges)
         # Lower red range (0-10)
@@ -53,18 +53,18 @@ class WasteDetector(Node):
         self.blue_lower = np.array([95, 80, 60])
         self.blue_upper = np.array([135, 255, 255])
 
-        # Detection gating: require object to be in front of camera (center-ish + lower-ish)
+        # Detection gating: require object to be in front of camera (center-ish + lower half only)
         # This reduces false positives from distant scenery.
-        self.center_x_min = 0.25   # fraction of image width
-        self.center_x_max = 0.75
-        self.center_y_min = 0.25   # fraction of image height (ignore top sky/far field)
+        self.center_x_min = 0.30   # fraction of image width (tighter horizontal window)
+        self.center_x_max = 0.70
+        self.center_y_min = 0.40   # fraction of image height (only lower 60% - closer objects)
 
         # Publish only on change (plus cooldown) to avoid spamming same label
         self.last_published = None
         
         # Cooldown to prevent spam publishing
         self.last_detection_time = self.get_clock().now()
-        self.detection_cooldown = 0.5  # seconds
+        self.detection_cooldown = 1.0  # seconds
         
         self.get_logger().info('Waste Detector Node Started')
         self.get_logger().info('Subscribed to: /gcar/camera/image_raw')
@@ -176,8 +176,8 @@ class WasteDetector(Node):
                 continue
 
             # Gate by size relative to image (avoid tiny distant detections)
-            # 0.3% is enough for bins a few meters away but still rejects tiny noise.
-            if area < 0.003 * (w * h):  # at least 0.3% of image pixels
+            # Require at least 1.5% of image to ensure object is close enough
+            if area < 0.015 * (w * h):  # at least 1.5% of image pixels
                 continue
 
             if area > max_area:
