@@ -44,6 +44,9 @@ class BoundaryMonitor(Node):
         # Warning state tracking
         self.last_warning = None
         
+        # Out of bounds state
+        self.is_out_of_bounds = False
+        
         # Subscriber to odometry
         self.odom_sub = self.create_subscription(
             Odometry,
@@ -58,13 +61,16 @@ class BoundaryMonitor(Node):
         # Publisher for emergency stop (publishes zero velocity)
         self.stop_pub = self.create_publisher(Twist, '/gcar/cmd_vel', 10)
         
-        # Timer for periodic boundary checks (5 Hz)
-        self.timer = self.create_timer(0.2, self.check_boundaries)
+        # Timer for periodic boundary checks (10 Hz - fast enough to override teleop)
+        self.timer = self.create_timer(0.1, self.check_boundaries)
+        
+        # High-frequency emergency stop timer (50 Hz - only active when out of bounds)
+        self.emergency_timer = None
         
         self.get_logger().info('Boundary Monitor Node Started')
         self.get_logger().info(f'Operational Area: X[{self.x_min}, {self.x_max}], Y[{self.y_min}, {self.y_max}]')
         self.get_logger().info(f'Warning margin: {self.warning_margin}m')
-        self.get_logger().info(f'Emergency stop: {"ENABLED" if self.emergency_stop else "DISABLED"}')
+        self.get_logger().info(f'Emergency stop: {"ENABLED (50 Hz override)" if self.emergency_stop else "DISABLED"}')
 
     def odom_callback(self, msg):
         """Update current robot position from odometry."""
@@ -103,20 +109,22 @@ class BoundaryMonitor(Node):
             
             warning_msg = f"OUT OF BOUNDS! Position: ({self.current_x:.2f}, {self.current_y:.2f})"
             
-            # Log error only on first detection (avoid spam)
-            if self.last_warning != warning_msg:
+            # Activate high-frequency emergency stop if not already active
+            if not self.is_out_of_bounds:
+                self.is_out_of_bounds = True
                 self.get_logger().error(warning_msg)
-                self.last_warning = warning_msg
+                self.get_logger().error('Activating high-frequency emergency stop (50 Hz)')
+                
+                # Start high-frequency timer to override teleop (50 Hz >> teleop's 20 Hz)
+                if self.emergency_stop:
+                    self.emergency_timer = self.create_timer(0.02, self.emergency_stop_callback)
+            
+            self.last_warning = warning_msg
             
             # Publish warning (every cycle while out of bounds)
             msg = String()
             msg.data = warning_msg
             self.warning_pub.publish(msg)
-            
-            # Emergency stop if enabled - CONTINUOUSLY publish while out of bounds
-            # This overrides any other velocity commands (teleop, Nav2, etc.)
-            if self.emergency_stop:
-                self.publish_stop()
             
             return
         
@@ -134,11 +142,28 @@ class BoundaryMonitor(Node):
                 msg.data = warning_msg
                 self.warning_pub.publish(msg)
         else:
+            # Deactivate emergency timer if robot is back in bounds
+            if self.is_out_of_bounds:
+                self.is_out_of_bounds = False
+                self.get_logger().info('Back in safe zone - deactivating emergency stop')
+                
+                # Stop the high-frequency emergency timer
+                if self.emergency_timer is not None:
+                    self.emergency_timer.cancel()
+                    self.emergency_timer = None
+            
             # Clear warning if back in safe zone
             if self.last_warning is not None:
-                self.get_logger().info('Back in safe zone')
                 self.last_warning = None
 
+    def emergency_stop_callback(self):
+        """High-frequency emergency stop callback (50 Hz).
+        
+        This publishes stop commands faster than teleop (20 Hz) to override it.
+        Only active when robot is out of bounds.
+        """
+        self.publish_stop()
+    
     def publish_stop(self):
         """Publish zero velocity to stop the robot."""
         stop_msg = Twist()
