@@ -26,6 +26,7 @@ class ArmController(Node):
         'home': [0.0, 0.0, 0.0],                    # Stowed upright position (all joints straight)
         'pick_side': [1.57, -1.35, -1.25],          # Rotate 90° right, reach down to ground level
         'place_internal': [0.0, 0.65, 0.85],        # Face forward, reach over chassis to drop waste
+        'place_bin': [1.57, 0.3, 0.4],              # Rotate 90° right, reach out ~0.5m high to drop into bin
     }
     
     def __init__(self):
@@ -64,11 +65,18 @@ class ArmController(Node):
             self.go_place_callback
         )
         
+        self.srv_place_bin = self.create_service(
+            Trigger,
+            '/arm/go_place_bin',
+            self.go_place_bin_callback
+        )
+        
         self.get_logger().info('Arm Controller Node Started')
         self.get_logger().info('Available services:')
-        self.get_logger().info('  - /arm/go_home   : Move to HOME pose')
-        self.get_logger().info('  - /arm/go_pick   : Move to PICK_SIDE pose')
-        self.get_logger().info('  - /arm/go_place  : Move to PLACE_INTERNAL pose')
+        self.get_logger().info('  - /arm/go_home      : Move to HOME pose')
+        self.get_logger().info('  - /arm/go_pick      : Move to PICK_SIDE pose')
+        self.get_logger().info('  - /arm/go_place     : Move to PLACE_INTERNAL pose')
+        self.get_logger().info('  - /arm/go_place_bin : Move to PLACE_BIN pose (drop into world bins)')
         
         # Wait for action server to be available
         self.get_logger().info('Waiting for arm_controller action server...')
@@ -100,6 +108,15 @@ class ArmController(Node):
         
         response.success = success
         response.message = 'Moved to PLACE_INTERNAL' if success else 'Failed to move to PLACE_INTERNAL'
+        return response
+    
+    def go_place_bin_callback(self, request, response):
+        """Service callback to move arm to PLACE_BIN position."""
+        self.get_logger().info('Moving arm to PLACE_BIN position (drop into world bin)...')
+        success = self.move_to_pose('place_bin', duration=4.0)
+        
+        response.success = success
+        response.message = 'Moved to PLACE_BIN' if success else 'Failed to move to PLACE_BIN'
         return response
     
     def move_to_pose(self, pose_name, duration=3.0):
