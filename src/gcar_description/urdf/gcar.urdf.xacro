@@ -605,6 +605,7 @@
         <namespace>/gcar</namespace>
       </ros>
       <parameters>$(arg controller_config_file)</parameters>
+      <controller_manager_name>controller_manager</controller_manager_name>
     </plugin>
   </gazebo>
 

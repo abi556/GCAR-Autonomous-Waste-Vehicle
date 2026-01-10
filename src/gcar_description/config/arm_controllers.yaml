@@ -1,4 +1,4 @@
-controller_manager:
+/gcar/controller_manager:
   ros__parameters:
     update_rate: 100  # Hz
     
@@ -10,7 +10,7 @@ controller_manager:
     arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
-arm_controller:
+/gcar/arm_controller:
   ros__parameters:
     joints:
       - arm_base_joint
@@ -46,7 +46,7 @@ arm_controller:
         trajectory: 0.05
         goal: 0.02
 
-joint_state_broadcaster:
+/gcar/joint_state_broadcaster:
   ros__parameters:
     type: joint_state_broadcaster/JointStateBroadcaster
 
