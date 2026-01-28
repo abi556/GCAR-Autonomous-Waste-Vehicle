@@ -5,11 +5,12 @@ A ROS 2 Humble simulation-based robotics project featuring intelligent planning 
 ## Project Overview
 
 GCAR is an autonomous garbage collection robot simulated in Gazebo that integrates:
-- Autonomous navigation with LiDAR-based SLAM
-- Computer vision-based waste detection and classification
-- Robotic arm manipulation for waste collection and sorting
-- Intelligent mission planning with learning-based route optimization
-- Human-aware interaction and safety behaviors
+- Computer vision-based waste detection (OpenCV color thresholding)
+- Autonomous navigation using a lightweight proportional controller (`simple_navigator`)
+- Robotic arm manipulation using `ros2_control` + preset joint poses
+- “Magic pickup/place” simulation using Gazebo entity delete/spawn
+- Safety behaviors (boundary monitoring)
+- Human-aware interaction (practical form): **seamless teleop handover** to override autonomy
 
 ## Prerequisites
 
@@ -81,6 +82,39 @@ ros2 launch gcar_simulation world.launch.py
 ```
 
 ## Testing Guide
+
+### Full System Test (Recommended) — 7 Terminals
+
+Run these **in order** (same order as `cmd.txt`) after building and sourcing your workspace:
+
+```bash
+# Terminal 1: Gazebo
+ros2 launch gcar_description spawn_robot.launch.py
+
+# Terminal 2: Arm Controllers
+ros2 launch gcar_manipulation arm_control_simple.launch.py
+
+# Terminal 3: Gazebo Manager (magic pickup/place services)
+ros2 run gcar_manipulation gazebo_manager
+
+# Terminal 4: Simple Navigator (REQUIRED)
+ros2 run gcar_navigation simple_navigator
+
+# Terminal 5: Waste Detector
+ros2 run gcar_perception waste_detector
+
+# Terminal 6: Pickup Coordinator (state machine)
+ros2 run gcar_manipulation pickup_coordinator
+
+# Terminal 7: Teleop (optional, for operator override)
+ros2 run gcar_navigation teleop_wasd
+```
+
+Notes:
+- **Teleop handover**: When you press WASD to drive, `simple_navigator` yields control automatically via `/control/teleop_active`.
+- **Abort recovery**: If navigation to a bin aborts, you can manually drive near the correct bin; the coordinator will auto-drop when within ~1.5m.
+
+---
 
 ### 1. View Robot in RViz2 (URDF only, no Gazebo)
 
@@ -217,76 +251,22 @@ killall -9 gazebo gzserver gzclient
 - Warehouse (gray)
 - Shops and community center
 
-**Smart Bins (Color-coded by waste type):**
+**Bins (Color-coded):**
 | Color  | Type           | Locations                    |
 |--------|----------------|------------------------------|
-| 🔴 Red    | General Waste  | Near office, residential, warehouse |
-| 🔵 Blue   | Recycling      | Near office, apartment, residential |
-| 🟡 Yellow | Metal          | Near warehouse               |
-| 🟤 Brown  | Organic        | Near community center        |
+| 🔴 Red    | General Waste  | Roadside locations (3 bins) |
+| 🔵 Blue   | Recycling      | Roadside locations (3 bins) |
 
-**Charging Station:** Located at (-24, -8) with green indicator light
+> Note: Charging station / multi-bin categories were part of the original proposal, but are not implemented in the current demo.
 
-## Navigation & SLAM
+## Navigation (Implemented)
 
-### Launch Navigation Stack
+The current demo uses a lightweight navigation node:
+- `gcar_navigation/simple_navigator.py` subscribes to `/nav/target`
+- It drives toward targets using odometry feedback and stops with a safety buffer to avoid collisions
+- It automatically yields to teleop when `/control/teleop_active` is true
 
-First, start the simulation with the robot:
-
-```bash
-# Terminal 1: Launch simulation
-ros2 launch gcar_description spawn_robot.launch.py
-```
-
-Then launch navigation with SLAM:
-
-```bash
-# Terminal 2: Launch SLAM + Nav2 + RViz
-ros2 launch gcar_navigation navigation.launch.py
-```
-
-### Build a Map (Teleoperation)
-
-Use WASD keyboard teleop to drive the robot and build a map:
-
-```bash
-# Terminal 3: WASD keyboard teleop
-ros2 run gcar_navigation teleop_wasd
-```
-
-**Controls (Hold-to-Move):**
-- `W` - Move forward (hold key, release to stop)
-- `S` - Move backward (hold key, release to stop)
-- `A` - Turn left (hold key, release to stop)
-- `D` - Turn right (hold key, release to stop)
-- `W+A` - Move forward while turning left
-- `W+D` - Move forward while turning right
-- `+` / `-` - Increase/decrease linear speed (10%)
-- `[` / `]` - Increase/decrease angular speed (10%)
-
-**Tip:** Robot moves ONLY while you hold the key down. Release to stop immediately. Adjust speeds with `+/-` and `[/]` if movement feels too fast/slow.
-
-### Save the Map
-
-After building a map, save it:
-
-```bash
-ros2 run nav2_map_server map_saver_cli -f ~/Rob_proj/gcar_ws/maps/city_map
-```
-
-### Autonomous Navigation
-
-1. In RViz, use **"2D Pose Estimate"** to set the robot's initial pose
-2. Use **"Nav2 Goal"** button to set navigation goals
-3. The robot will autonomously plan and navigate to the goal
-
-### Navigation Features
-
-- **SLAM Toolbox**: Online async mapping using LiDAR
-- **Nav2 Planner**: NavFn global path planning
-- **DWB Controller**: Differential drive local planning
-- **Costmaps**: Obstacle avoidance with inflation layers
-- **Recovery Behaviors**: Spin, backup, wait on stuck
+> Nav2/SLAM was part of the original proposal but is not required for the current demo workflow.
 
 ## Perception - Waste Detection
 
@@ -328,7 +308,8 @@ Select `/gcar/camera/image_raw` from the dropdown.
 ros2 topic echo /detected_waste
 ```
 
-Place red or blue bins in front of the robot's camera to trigger detections.
+Place the **red/blue waste cubes** in front of the robot camera to trigger detections.  
+(Bins are also colored in the world, but the detector includes filters to reduce bin-as-waste noise.)
 
 ### Detection Parameters
 
@@ -427,8 +408,9 @@ The `gcar_manipulation` package provides 3-DOF robotic arm control using ros2_co
 | Pose | Joint Angles [Base, Shoulder, Elbow] | Purpose |
 |------|--------------------------------------|---------|
 | **HOME** | [0.0, 0.0, 0.0] | Stowed/upright position |
-| **PICK_SIDE** | [1.57, 0.5, -0.5] | Pick waste from ground next to robot |
-| **PLACE_INTERNAL** | [0.0, -1.0, 1.0] | Drop waste into internal collection box |
+| **PICK_FRONT** | (preset) | Reach down in front (camera-facing pickup) |
+| **PLACE_INTERNAL** | (preset) | Carry pose (arm moved to rear/internal-safe pose) |
+| **PLACE_BIN** | (preset) | Place/drop pose for world bins |
 
 ### Run Arm Control
 
@@ -455,11 +437,26 @@ Use ROS 2 services to move the arm to preset poses:
 # Move to HOME position (stowed)
 ros2 service call /arm/go_home std_srvs/srv/Trigger
 
-# Move to PICK_SIDE position
+# Move to PICK_FRONT position
 ros2 service call /arm/go_pick std_srvs/srv/Trigger
 
-# Move to PLACE_INTERNAL position
+# Move to PLACE_INTERNAL (carry) position
 ros2 service call /arm/go_place std_srvs/srv/Trigger
+
+# Move to PLACE_BIN position (drop into world bins)
+ros2 service call /arm/go_place_bin std_srvs/srv/Trigger
+```
+
+### Troubleshooting (Arm Controllers YAML not found)
+If you see an error like:
+`FileNotFoundError: .../share/gcar_description/config/arm_controllers.yaml`
+
+Rebuild and re-source:
+
+```bash
+cd ~/Rob_proj/gcar_ws
+colcon build --packages-select gcar_description
+source install/setup.bash
 ```
 
 **Response:**
