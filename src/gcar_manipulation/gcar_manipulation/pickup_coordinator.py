@@ -42,6 +42,7 @@ class PickupCoordinator(Node):
         self.state = self.STATE_IDLE
         self.detected_waste_type = None  # 'red_waste' or 'blue_waste'
         self.waste_position = None  # (x, y) tuple of detected waste
+        self.carrying_waste_type = None  # 'red' or 'blue' when carrying waste (persists through aborts)
         
         # Robot position and orientation
         self.robot_x = 0.0
@@ -55,6 +56,10 @@ class PickupCoordinator(Node):
         # Pickup verification
         self.pickup_success = False
         
+        # Bin proximity check timer (for automatic drop when manually approaching bin)
+        self.last_bin_check_time = 0.0
+        self.bin_check_interval = 1.5  # seconds between checks
+        
         # Publisher for cmd_vel (for alignment rotation)
         self.cmd_vel_pub = self.create_publisher(Twist, '/gcar/cmd_vel', 10)
         
@@ -63,9 +68,19 @@ class PickupCoordinator(Node):
             'red': (1.5, 1.0),
             'blue': (-1.5, 1.0),
         }
+        # Bin locations: multiple roadside bins of each color.
+        # We will choose the NEAREST bin at runtime.
         self.bin_locations = {
-            'red': (3.5, 8.0),
-            'blue': (3.5, 12.0),
+            'red': [
+                (3.5, 8.0),     # roadside_bin_red_1
+                (-3.5, -8.0),   # roadside_bin_red_2
+                (10.0, 3.5),    # roadside_bin_red_3
+            ],
+            'blue': [
+                (3.5, 12.0),    # roadside_bin_blue_1
+                (-3.5, -12.0),  # roadside_bin_blue_2
+                (-10.0, -3.5),  # roadside_bin_blue_3
+            ],
         }
         
         # Subscribers
@@ -135,12 +150,17 @@ class PickupCoordinator(Node):
         # If the estimated waste position is very close to the robot
         # AND also very close to the matching bin, we assume this is
         # just the cube we *just dropped* at the bin and ignore it.
-        bin_xy = self.bin_locations[color]
+        # Find distance from estimated waste position to the NEAREST bin of
+        # this color (used only for \"ghost at bin\" filtering).
+        candidate_bins = self.bin_locations[color]
+        # Distance from robot to waste (in front of camera)
         dist_robot_to_waste = math.sqrt(
             (estimated_x - self.robot_x) ** 2 + (estimated_y - self.robot_y) ** 2
         )
-        dist_waste_to_bin = math.sqrt(
-            (estimated_x - bin_xy[0]) ** 2 + (estimated_y - bin_xy[1]) ** 2
+        # Minimum distance from waste estimate to any bin of this color
+        dist_waste_to_bin = min(
+            math.sqrt((estimated_x - bx) ** 2 + (estimated_y - by) ** 2)
+            for (bx, by) in candidate_bins
         )
 
         if dist_robot_to_waste < 0.5 and dist_waste_to_bin < 1.0:
@@ -164,8 +184,37 @@ class PickupCoordinator(Node):
     def state_machine_step(self):
         """Main state machine loop."""
         if self.state == self.STATE_IDLE:
-            # Waiting for waste detection
-            pass
+            # Check if robot is carrying waste and manually approaching a bin
+            current_time = time.time()
+            if (self.carrying_waste_type is not None and 
+                (current_time - self.last_bin_check_time) >= self.bin_check_interval):
+                self.last_bin_check_time = current_time
+                
+                # Get candidate bins for the color we're carrying
+                color = self.carrying_waste_type
+                candidate_bins = self.bin_locations.get(color, [])
+                
+                # Find nearest bin and check if we're close enough
+                nearest_bin = None
+                nearest_dist = None
+                for bx, by in candidate_bins:
+                    dx = bx - self.robot_x
+                    dy = by - self.robot_y
+                    dist = math.sqrt(dx * dx + dy * dy)
+                    if nearest_dist is None or dist < nearest_dist:
+                        nearest_dist = dist
+                        nearest_bin = (bx, by)
+                
+                # If within 1.5m of matching bin, automatically trigger PLACE
+                if nearest_bin is not None and nearest_dist < 1.5:
+                    self.get_logger().info(
+                        f'Automatic drop triggered: Carrying {color} waste, '
+                        f'near {color} bin at ({nearest_bin[0]:.2f}, {nearest_bin[1]:.2f}), '
+                        f'distance: {nearest_dist:.2f}m'
+                    )
+                    # Set detected_waste_type temporarily so PLACE logic knows which color
+                    self.detected_waste_type = f'{color}_waste'
+                    self.state = self.STATE_PLACE
         
         elif self.state == self.STATE_APPROACH_WASTE:
             # Simple approach: just wait a bit for robot to get closer
@@ -286,6 +335,11 @@ class PickupCoordinator(Node):
             
             if self._pickup_decided:
                 if self.pickup_success:
+                    # Extract color from detected_waste_type and store as carrying state
+                    color = self.detected_waste_type.replace('_waste', '') if self.detected_waste_type else None
+                    self.carrying_waste_type = color
+                    self.get_logger().info(f'Carrying {color} waste (state tracked)')
+                    
                     # Raise arm to a mid/high "carry" pose (PLACE_INTERNAL)
                     # so it looks like the robot is holding the waste up and
                     # navigation is easier than with the arm near the ground.
@@ -308,17 +362,36 @@ class PickupCoordinator(Node):
             # Initialize navigation on first entry
             if self.navigation_target is None:
                 color = self.detected_waste_type.replace('_waste', '')  # 'red' or 'blue'
-                bin_location = self.bin_locations[color]
-                self.navigation_target = bin_location
+                # Choose the NEAREST bin of the appropriate color from our
+                # catalog, based on the robot's current odom pose.
+                candidate_bins = self.bin_locations[color]
+                nearest_bin = None
+                nearest_dist = None
+                for bx, by in candidate_bins:
+                    dx = bx - self.robot_x
+                    dy = by - self.robot_y
+                    dist = math.sqrt(dx * dx + dy * dy)
+                    if nearest_dist is None or dist < nearest_dist:
+                        nearest_dist = dist
+                        nearest_bin = (bx, by)
+
+                self.navigation_target = nearest_bin
+                # Track best (minimum) distance seen so far to detect if we
+                # start moving away from the bin.
+                self._nav_min_distance = nearest_dist
                 self.last_nav_log_time = time.time()
                 
-                self.get_logger().info(f'State: NAVIGATE_TO_BIN')
-                self.get_logger().info(f'Driving to {color} bin at ({bin_location[0]:.2f}, {bin_location[1]:.2f})')
+                self.get_logger().info('State: NAVIGATE_TO_BIN')
+                self.get_logger().info(
+                    f'Driving to NEAREST {color} bin at '
+                    f'({nearest_bin[0]:.2f}, {nearest_bin[1]:.2f}), '
+                    f'starting distance {nearest_dist:.2f}m'
+                )
                 
                 # Publish navigation target
                 target_msg = Point()
-                target_msg.x = bin_location[0]
-                target_msg.y = bin_location[1]
+                target_msg.x = nearest_bin[0]
+                target_msg.y = nearest_bin[1]
                 target_msg.z = 0.0
                 self.nav_target_pub.publish(target_msg)
             
@@ -327,6 +400,11 @@ class PickupCoordinator(Node):
                 (self.robot_x - self.navigation_target[0])**2 + 
                 (self.robot_y - self.navigation_target[1])**2
             )
+
+            # Update minimum distance seen so far
+            if hasattr(self, '_nav_min_distance'):
+                if distance_to_bin < self._nav_min_distance:
+                    self._nav_min_distance = distance_to_bin
             
             # Log progress every 2 seconds
             current_time = time.time()
@@ -339,10 +417,42 @@ class PickupCoordinator(Node):
                 color = self.detected_waste_type.replace('_waste', '')
                 self.get_logger().info(f'Arrived at {color} bin! Distance: {distance_to_bin:.2f}m')
                 self.navigation_target = None  # Reset for next navigation
+                if hasattr(self, '_nav_min_distance'):
+                    delattr(self, '_nav_min_distance')
                 self.state = self.STATE_PLACE
+                return
+
+            # SAFETY: if we have moved significantly farther away from the bin
+            # than the closest we have ever been (e.g. > 5m worse), abort
+            # navigation to avoid driving out of the city.
+            if hasattr(self, '_nav_min_distance'):
+                if distance_to_bin > (self._nav_min_distance + 5.0):
+                    self.get_logger().warn(
+                        'Navigation distance to bin has increased by more than 5m '
+                        'from the closest point reached. Aborting NAVIGATE_TO_BIN '
+                        'to avoid leaving the city. Handing control back to operator.'
+                    )
+                    self.stop_robot()
+                    self.navigation_target = None
+                    delattr(self, '_nav_min_distance')
+                    self.state = self.STATE_IDLE
+                    self.detected_waste_type = None
+                    self.waste_position = None
+                    # NOTE: Preserve carrying_waste_type so manual bin approach can trigger drop
+                    self.get_logger().info(
+                        f'Navigation aborted. Still carrying {self.carrying_waste_type} waste. '
+                        'Manual drive to bin will trigger automatic drop.'
+                    )
         
         elif self.state == self.STATE_PLACE:
-            self.get_logger().info('State: PLACE (arm to bin + spawn model)')
+            # Check if this was triggered by automatic proximity check or normal navigation
+            if self.detected_waste_type and self.carrying_waste_type:
+                self.get_logger().info(
+                    f'State: PLACE (arm to bin + spawn model) - '
+                    f'{"Automatic drop triggered by bin proximity" if self.navigation_target is None else "Normal navigation flow"}'
+                )
+            else:
+                self.get_logger().info('State: PLACE (arm to bin + spawn model)')
             # Call arm service to reach bin
             self._call_arm_place_bin()
             time.sleep(3.0)
@@ -358,6 +468,9 @@ class PickupCoordinator(Node):
             self.detected_waste_type = None
             self.waste_position = None
             self.pickup_success = False
+            # Clear carrying state after successful placement
+            self.carrying_waste_type = None
+            self.get_logger().info('Placement complete. Carrying state cleared.')
     
     def _call_arm_home(self):
         """Call arm home service."""

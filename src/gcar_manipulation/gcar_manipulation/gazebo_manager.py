@@ -76,6 +76,21 @@ class GazeboManager(Node):
             'waste_blue_4': (-3.0,-4.0),
         }
         
+        # Bin locations catalog (matching pickup_coordinator)
+        # Used for nearest-bin selection when placing waste.
+        self.bin_locations = {
+            'red': [
+                (3.5, 8.0),     # roadside_bin_red_1
+                (-3.5, -8.0),   # roadside_bin_red_2
+                (10.0, 3.5),    # roadside_bin_red_3
+            ],
+            'blue': [
+                (3.5, 12.0),    # roadside_bin_blue_1
+                (-3.5, -12.0),  # roadside_bin_blue_2
+                (-10.0, -3.5),  # roadside_bin_blue_3
+            ],
+        }
+        
         # Wait for Gazebo services
         self.get_logger().info('Waiting for Gazebo services...')
         self.delete_client.wait_for_service(timeout_sec=5.0)
@@ -234,11 +249,11 @@ class GazeboManager(Node):
         return response
     
     def place_waste_callback(self, request, response):
-        """Simulate placing waste by spawning a new model at bin location.
+        """Simulate placing waste by spawning a new model at nearest matching bin location.
         
-        In a real implementation, this would:
-        1. Use robot position to find nearest matching bin
-        2. Spawn waste model at bin location
+        Behavior:
+        1. Use robot position and carried_waste_type to find nearest matching bin
+        2. Spawn waste model at that bin location
         3. Clear carrying_waste flag
         """
         if not self.carrying_waste:
@@ -246,10 +261,53 @@ class GazeboManager(Node):
             response.message = 'Not carrying any waste!'
             return response
         
-        # For simplicity, spawn at a fixed location (red bin at 3.5, 8.0)
-        # In full implementation, this would use robot position and carried_waste_type
-        bin_x = 3.5
-        bin_y = 8.0
+        if not self.odom_received:
+            response.success = False
+            response.message = 'No odometry received yet; cannot select nearest bin.'
+            self.get_logger().warn(response.message)
+            return response
+        
+        if self.carried_waste_type is None:
+            response.success = False
+            response.message = 'Unknown waste type; cannot determine bin location.'
+            self.get_logger().error(response.message)
+            return response
+        
+        # Find nearest bin of matching color based on robot position
+        color = self.carried_waste_type
+        candidate_bins = self.bin_locations.get(color, [])
+        
+        if not candidate_bins:
+            response.success = False
+            response.message = f'No bins found for color: {color}'
+            self.get_logger().error(response.message)
+            return response
+        
+        # Select nearest bin
+        nearest_bin = None
+        nearest_dist = None
+        rx = self.robot_x
+        ry = self.robot_y
+        
+        for bx, by in candidate_bins:
+            dx = bx - rx
+            dy = by - ry
+            dist = math.sqrt(dx * dx + dy * dy)
+            if nearest_dist is None or dist < nearest_dist:
+                nearest_dist = dist
+                nearest_bin = (bx, by)
+        
+        if nearest_bin is None:
+            response.success = False
+            response.message = f'Could not determine nearest {color} bin.'
+            self.get_logger().error(response.message)
+            return response
+        
+        bin_x, bin_y = nearest_bin
+        self.get_logger().info(
+            f'Selected nearest {color} bin at ({bin_x:.2f}, {bin_y:.2f}), '
+            f'distance: {nearest_dist:.2f}m'
+        )
 
         # Derive a stable recycled name from the last deleted waste
         # e.g. waste_red_4 -> waste_red_4_recycled
