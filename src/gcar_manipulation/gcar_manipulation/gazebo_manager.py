@@ -10,6 +10,7 @@ import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
 from gazebo_msgs.srv import DeleteEntity, SpawnEntity
+from gazebo_msgs.msg import ModelStates
 from geometry_msgs.msg import Pose
 import math
 
@@ -28,6 +29,15 @@ class GazeboManager(Node):
         # Service clients for Gazebo
         self.delete_client = self.create_client(DeleteEntity, '/delete_entity')
         self.spawn_client = self.create_client(SpawnEntity, '/spawn_entity')
+        
+        # Track latest model list from Gazebo to verify deletions
+        self.latest_model_names = None
+        self.model_states_sub = self.create_subscription(
+            ModelStates,
+            '/gazebo/model_states',
+            self.model_states_callback,
+            10,
+        )
         
         # Wait for Gazebo services
         self.get_logger().info('Waiting for Gazebo services...')
@@ -53,6 +63,10 @@ class GazeboManager(Node):
         self.get_logger().info('  - /gazebo/place_waste  : Spawn waste model (magic place)')
         self.get_logger().info(f'Carrying waste: {self.carrying_waste}')
     
+    def model_states_callback(self, msg: ModelStates):
+        """Store the latest list of model names from Gazebo."""
+        self.latest_model_names = set(msg.name)
+    
     def pickup_waste_callback(self, request, response):
         """Simulate picking up waste by deleting nearest waste model.
         
@@ -67,27 +81,49 @@ class GazeboManager(Node):
             return response
         
         # For simplicity, we'll assume the closest waste is "waste_red_1"
-        # In full implementation, this would use robot position to find nearest
+        # In a more advanced version, this would use robot position to find
+        # and delete the *actual* nearest waste model.
         model_name = 'waste_red_1'  # TODO: Find nearest waste dynamically
         
-        # Delete the waste model
+        # Delete the waste model and *verify* that it actually disappeared
+        # using Gazebo's model list.
         delete_req = DeleteEntity.Request()
         delete_req.name = model_name
-        
         future = self.delete_client.call_async(delete_req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
         
-        if future.result() is not None and future.result().success:
-            self.carrying_waste = True
-            self.carried_waste_type = 'red'  # Extract from model_name
-            self.get_logger().info(f'Picked up {model_name} (magic delete)')
-            response.success = True
-            response.message = f'Picked up {model_name}'
-        else:
-            self.get_logger().warn(f'Failed to delete {model_name}')
+        if future.result() is None or not future.result().success:
+            self.get_logger().warn(f'Gazebo delete service reported failure for {model_name}')
             response.success = False
             response.message = f'Failed to delete {model_name}'
+            return response
         
+        # At this point Gazebo says the delete succeeded. To be robust, also
+        # confirm via /gazebo/model_states that the model name disappears.
+        model_gone = False
+        for _ in range(15):  # up to ~1.5s total
+            # Allow this node to process a /gazebo/model_states update
+            rclpy.spin_once(self, timeout_sec=0.1)
+            if self.latest_model_names is not None:
+                if model_name not in self.latest_model_names:
+                    model_gone = True
+                    break
+        
+        if not model_gone:
+            self.get_logger().warn(
+                f'DeleteEntity succeeded but {model_name} still appears in model list.'
+            )
+            response.success = False
+            response.message = f'{model_name} still present after delete'
+            return response
+        
+        # Verified gone from world → treat as successful pickup
+        self.carrying_waste = True
+        self.carried_waste_type = 'red'  # In a dynamic version, derive from model_name
+        self.get_logger().info(f'Picked up {model_name} (verified removed from Gazebo)')
+        
+        response.success = True
+        response.message = f'Picked up {model_name}'
         return response
     
     def place_waste_callback(self, request, response):

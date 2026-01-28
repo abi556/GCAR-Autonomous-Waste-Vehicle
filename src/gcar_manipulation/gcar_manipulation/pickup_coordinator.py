@@ -199,6 +199,8 @@ class PickupCoordinator(Node):
                 self._arm_pick_called = False
                 self._gazebo_pickup_called = False
                 self.pickup_success = False
+                self._gazebo_pickup_future = None
+                self._gazebo_pickup_request_time = None
             
             elapsed = time.time() - self._pickup_start_time
             
@@ -209,15 +211,36 @@ class PickupCoordinator(Node):
             
             # Call Gazebo pickup service after 3.5s (arm should be down)
             if elapsed >= 3.5 and not self._gazebo_pickup_called:
-                success = self._call_gazebo_pickup_sync()
-                self.pickup_success = success
+                # IMPORTANT: do NOT block inside a timer callback with
+                # spin_until_future_complete. We start an async call and
+                # check completion on subsequent timer ticks.
+                self._gazebo_pickup_future = self._call_gazebo_pickup_async()
+                self._gazebo_pickup_request_time = time.time()
                 self._gazebo_pickup_called = True
-                if not success:
-                    self.get_logger().error('Pickup FAILED! Waste not deleted. Aborting workflow.')
-                    self.state = self.STATE_IDLE
-                    self.detected_waste_type = None
-                    self.waste_position = None
-                    return
+            
+            # If we started the Gazebo pickup call, check if it finished
+            if self._gazebo_pickup_called and self._gazebo_pickup_future is not None:
+                if self._gazebo_pickup_future.done():
+                    try:
+                        resp = self._gazebo_pickup_future.result()
+                        self.pickup_success = bool(resp and resp.success)
+                        if self.pickup_success:
+                            self.get_logger().info('Gazebo pickup succeeded!')
+                        else:
+                            self.get_logger().error(f'Gazebo pickup failed: {resp.message if resp else "No response"}')
+                    except Exception as e:  # noqa: BLE001
+                        self.pickup_success = False
+                        self.get_logger().error(f'Gazebo pickup exception: {e}')
+                else:
+                    # Wait up to 6 seconds for the service response.
+                    # If it times out, treat as failure (gazebo_manager now
+                    # does its own environment-based verification).
+                    if (
+                        self._gazebo_pickup_request_time is not None and
+                        (time.time() - self._gazebo_pickup_request_time) > 6.0
+                    ):
+                        self.pickup_success = False
+                        self.get_logger().error('Gazebo pickup service call timeout!')
             
             # Wait for arm to complete and verify pickup
             if elapsed >= 4.5:
@@ -329,32 +352,19 @@ class PickupCoordinator(Node):
             future = self.gazebo_pickup_client.call_async(req)
             self.get_logger().info('Called /gazebo/pickup_waste')
     
-    def _call_gazebo_pickup_sync(self):
-        """Call Gazebo pickup service synchronously and return success."""
+    def _call_gazebo_pickup_async(self):
+        """Start Gazebo pickup service call and return future (non-blocking)."""
         if self.gazebo_pickup_client is None:
             self.gazebo_pickup_client = self.create_client(Trigger, '/gazebo/pickup_waste')
         
-        if not self.gazebo_pickup_client.wait_for_service(timeout_sec=2.0):
+        if not self.gazebo_pickup_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().error('Gazebo pickup service not available!')
-            return False
+            return None
         
         req = Trigger.Request()
         future = self.gazebo_pickup_client.call_async(req)
-        
-        # Wait for response (with timeout)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
-        
-        if future.done():
-            response = future.result()
-            if response and response.success:
-                self.get_logger().info('Gazebo pickup succeeded!')
-                return True
-            else:
-                self.get_logger().warn(f'Gazebo pickup failed: {response.message if response else "No response"}')
-                return False
-        else:
-            self.get_logger().error('Gazebo pickup service call timeout!')
-            return False
+        self.get_logger().info('Called /gazebo/pickup_waste')
+        return future
     
     def stop_robot(self):
         """Stop robot movement."""
