@@ -32,6 +32,7 @@ class PickupCoordinator(Node):
     STATE_PICKUP = 'PICKUP'
     STATE_NAVIGATE_TO_BIN = 'NAVIGATE_TO_BIN'
     STATE_PLACE = 'PLACE'
+    STATE_BACKUP_FROM_BIN = 'BACKUP_FROM_BIN'
     STATE_RETURN_HOME = 'RETURN_HOME'
     
     def __init__(self):
@@ -88,6 +89,7 @@ class PickupCoordinator(Node):
         # Service clients (created when needed)
         self.arm_home_client = None
         self.arm_pick_client = None
+        self.arm_place_internal_client = None
         self.arm_place_bin_client = None
         self.gazebo_pickup_client = None
         self.gazebo_place_client = None
@@ -123,10 +125,34 @@ class PickupCoordinator(Node):
         # Use robot's CURRENT position + small forward offset (waste is detected in front of robot)
         # Camera is front-facing, so waste is approximately 0.5-1.0m in front
         forward_offset = 0.8  # meters in front of robot
-        self.waste_position = (
-            self.robot_x + forward_offset * math.cos(self.robot_yaw),
-            self.robot_y + forward_offset * math.sin(self.robot_yaw)
+        estimated_x = self.robot_x + forward_offset * math.cos(self.robot_yaw)
+        estimated_y = self.robot_y + forward_offset * math.sin(self.robot_yaw)
+        self.waste_position = (estimated_x, estimated_y)
+
+        # --------------------------------------------------------------
+        # Proximity filter (Ghost Fix near the bin)
+        # --------------------------------------------------------------
+        # If the estimated waste position is very close to the robot
+        # AND also very close to the matching bin, we assume this is
+        # just the cube we *just dropped* at the bin and ignore it.
+        bin_xy = self.bin_locations[color]
+        dist_robot_to_waste = math.sqrt(
+            (estimated_x - self.robot_x) ** 2 + (estimated_y - self.robot_y) ** 2
         )
+        dist_waste_to_bin = math.sqrt(
+            (estimated_x - bin_xy[0]) ** 2 + (estimated_y - bin_xy[1]) ** 2
+        )
+
+        if dist_robot_to_waste < 0.5 and dist_waste_to_bin < 1.0:
+            self.get_logger().info(
+                'Detection appears to be at the bin (likely just dropped waste). '
+                f'Ignoring detection: robot→waste={dist_robot_to_waste:.2f}m, '
+                f'waste→bin={dist_waste_to_bin:.2f}m.'
+            )
+            # Reset detection and stay in IDLE
+            self.detected_waste_type = None
+            self.waste_position = None
+            return
         
         self.get_logger().info(f'Detected {self.detected_waste_type}!')
         self.get_logger().info(f'Robot at: ({self.robot_x:.2f}, {self.robot_y:.2f}), yaw: {self.robot_yaw:.2f}')
@@ -201,6 +227,7 @@ class PickupCoordinator(Node):
                 self.pickup_success = False
                 self._gazebo_pickup_future = None
                 self._gazebo_pickup_request_time = None
+                self._pickup_decided = False
             
             elapsed = time.time() - self._pickup_start_time
             
@@ -231,6 +258,7 @@ class PickupCoordinator(Node):
                     except Exception as e:  # noqa: BLE001
                         self.pickup_success = False
                         self.get_logger().error(f'Gazebo pickup exception: {e}')
+                    self._pickup_decided = True
                 else:
                     # Wait up to 6 seconds for the service response.
                     # If it times out, treat as failure (gazebo_manager now
@@ -241,11 +269,32 @@ class PickupCoordinator(Node):
                     ):
                         self.pickup_success = False
                         self.get_logger().error('Gazebo pickup service call timeout!')
+                        self._pickup_decided = True
             
-            # Wait for arm to complete and verify pickup
-            if elapsed >= 4.5:
+            # DECISION:
+            # Previously we decided at a fixed time (4.5s). That caused a bug:
+            # gazebo_manager can take longer to respond, so we aborted before
+            # the service reply arrived. Now we only decide after either:
+            # - the pickup service future completes, or
+            # - the pickup service times out.
+            #
+            # Still keep a hard upper bound so we don't hang forever.
+            if not self._pickup_decided and elapsed >= 12.0:
+                self.pickup_success = False
+                self._pickup_decided = True
+                self.get_logger().error('Pickup overall timeout (no service response). Aborting.')
+            
+            if self._pickup_decided:
                 if self.pickup_success:
-                    self.get_logger().info('Pickup successful! Proceeding to bin.')
+                    # Raise arm to a mid/high "carry" pose (PLACE_INTERNAL)
+                    # so it looks like the robot is holding the waste up and
+                    # navigation is easier than with the arm near the ground.
+                    self.get_logger().info(
+                        'Pickup successful! Raising arm to CARRY (PLACE_INTERNAL) pose before navigating to bin.'
+                    )
+                    self._call_arm_place_internal()
+                    time.sleep(2.0)  # brief pause to let the arm move visually
+                    self.get_logger().info('Arm in carry pose. Proceeding to bin.')
                     delattr(self, '_pickup_start_time')
                     self.state = self.STATE_NAVIGATE_TO_BIN
                 else:
@@ -300,13 +349,11 @@ class PickupCoordinator(Node):
             # Call Gazebo service to spawn waste at bin
             self._call_gazebo_place()
             time.sleep(1.0)
-            self.state = self.STATE_RETURN_HOME
-        
-        elif self.state == self.STATE_RETURN_HOME:
-            self.get_logger().info('State: RETURN_HOME')
-            self._call_arm_home()
-            time.sleep(3.0)
-            self.get_logger().info('Workflow complete! Returning to IDLE.')
+            # Immediately hand control back to the operator:
+            # 1) publish an explicit stop to /gcar/cmd_vel
+            # 2) go back to IDLE so teleop is the only active controller.
+            self.stop_robot()  # flush any residual autonomous velocity
+            self.get_logger().info('[pickup_coordinator]: Nav2/simple navigator stopped. Teleop control is now ACTIVE.')
             self.state = self.STATE_IDLE
             self.detected_waste_type = None
             self.waste_position = None
@@ -331,6 +378,16 @@ class PickupCoordinator(Node):
             req = Trigger.Request()
             future = self.arm_pick_client.call_async(req)
             self.get_logger().info('Called /arm/go_pick')
+    
+    def _call_arm_place_internal(self):
+        """Call arm PLACE_INTERNAL service (used as mid/high carry pose)."""
+        if self.arm_place_internal_client is None:
+            self.arm_place_internal_client = self.create_client(Trigger, '/arm/go_place')
+        
+        if self.arm_place_internal_client.wait_for_service(timeout_sec=1.0):
+            req = Trigger.Request()
+            future = self.arm_place_internal_client.call_async(req)
+            self.get_logger().info('Called /arm/go_place (carry pose)')
     
     def _call_arm_place_bin(self):
         """Call arm place bin service."""

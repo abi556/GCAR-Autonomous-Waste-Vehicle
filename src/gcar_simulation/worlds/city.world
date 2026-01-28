@@ -23,11 +23,12 @@
     <!-- Main Road (North-South) -->
     <model name="road_ns_main">
       <static>true</static>
-      <pose>0 0 0.01 0 0 0</pose>
+      <!-- Very thin + centered at z=0 to avoid "step" -->
+      <pose>0 0 0.0 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>6 60 0.02</size></box>
+            <box><size>6 60 0.001</size></box>
           </geometry>
           <material>
             <ambient>0.2 0.2 0.2 1</ambient>
@@ -40,11 +41,12 @@
     <!-- Main Road (East-West) -->
     <model name="road_ew_main">
       <static>true</static>
-      <pose>0 0 0.01 0 0 0</pose>
+      <!-- Very thin + centered at z=0 to avoid "step" -->
+      <pose>0 0 0.0 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>60 6 0.02</size></box>
+            <box><size>60 6 0.001</size></box>
           </geometry>
           <material>
             <ambient>0.2 0.2 0.2 1</ambient>
@@ -57,11 +59,11 @@
     <!-- Road Lane Markings (center lines) -->
     <model name="lane_marking_ns">
       <static>true</static>
-      <pose>0 0 0.02 0 0 0</pose>
+      <pose>0 0 0.001 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>0.15 60 0.01</size></box>
+            <box><size>0.15 60 0.001</size></box>
           </geometry>
           <material>
             <ambient>1 1 0 1</ambient>
@@ -73,11 +75,11 @@
 
     <model name="lane_marking_ew">
       <static>true</static>
-      <pose>0 0 0.02 0 0 1.5708</pose>
+      <pose>0 0 0.001 0 0 1.5708</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>0.15 60 0.01</size></box>
+            <box><size>0.15 60 0.001</size></box>
           </geometry>
           <material>
             <ambient>1 1 0 1</ambient>
@@ -88,19 +90,19 @@
     </model>
 
     <!-- ==================== SIDEWALKS ==================== -->
-    <!-- NE Quadrant Sidewalk -->
+    <!-- NE Quadrant Sidewalk (very thin + z=0; no "curb") -->
     <model name="sidewalk_ne">
       <static>true</static>
-      <pose>15 15 0.01 0 0 0</pose>
+      <pose>15 15 0.0 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
           <material>
             <ambient>0.6 0.6 0.55 1</ambient>
@@ -110,19 +112,19 @@
       </link>
     </model>
 
-    <!-- NW Quadrant Sidewalk -->
+    <!-- NW Quadrant Sidewalk (very thin + z=0; no "curb") -->
     <model name="sidewalk_nw">
       <static>true</static>
-      <pose>-15 15 0.01 0 0 0</pose>
+      <pose>-15 15 0.0 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
           <material>
             <ambient>0.6 0.6 0.55 1</ambient>
@@ -132,19 +134,19 @@
       </link>
     </model>
 
-    <!-- SE Quadrant Sidewalk -->
+    <!-- SE Quadrant Sidewalk (very thin + z=0; no "curb") -->
     <model name="sidewalk_se">
       <static>true</static>
-      <pose>15 -15 0.01 0 0 0</pose>
+      <pose>15 -15 0.0 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
           <material>
             <ambient>0.6 0.6 0.55 1</ambient>
@@ -154,19 +156,19 @@
       </link>
     </model>
 
-    <!-- SW Quadrant Sidewalk -->
+    <!-- SW Quadrant Sidewalk (very thin + z=0; no "curb") -->
     <model name="sidewalk_sw">
       <static>true</static>
-      <pose>-15 -15 0.01 0 0 0</pose>
+      <pose>-15 -15 0.0 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>24 24 0.1</size></box>
+            <box><size>24 24 0.001</size></box>
           </geometry>
           <material>
             <ambient>0.6 0.6 0.55 1</ambient>
@@ -735,19 +737,19 @@
     
     <!-- ========== ROADSIDE BINS (accessible to robot) ========== -->
     
-    <!-- RED BIN on road edge - East side of NS road -->
+    <!-- RED BIN on road edge - East side of NS road (slightly shorter for easier reach) -->
     <model name="roadside_bin_red_1">
       <static>true</static>
-      <pose>3.5 8 0.35 0 0 0</pose>
+      <pose>3.5 8 0.25 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
           <material>
             <ambient>0.9 0.1 0.1 1</ambient>
@@ -758,19 +760,19 @@
       </link>
     </model>
 
-    <!-- BLUE BIN on road edge - East side of NS road (recyclable) -->
+    <!-- BLUE BIN on road edge - East side of NS road (recyclable, slightly shorter) -->
     <model name="roadside_bin_blue_1">
       <static>true</static>
-      <pose>3.5 12 0.35 0 0 0</pose>
+      <pose>3.5 12 0.25 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
           <material>
             <ambient>0.05 0.15 0.9 1</ambient>
@@ -781,19 +783,19 @@
       </link>
     </model>
 
-    <!-- RED BIN on road edge - West side of NS road -->
+    <!-- RED BIN on road edge - West side of NS road (slightly shorter) -->
     <model name="roadside_bin_red_2">
       <static>true</static>
-      <pose>-3.5 -8 0.35 0 0 0</pose>
+      <pose>-3.5 -8 0.25 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
           <material>
             <ambient>0.9 0.1 0.1 1</ambient>
@@ -804,19 +806,19 @@
       </link>
     </model>
 
-    <!-- BLUE BIN on road edge - West side of NS road (recyclable) -->
+    <!-- BLUE BIN on road edge - West side of NS road (recyclable, slightly shorter) -->
     <model name="roadside_bin_blue_2">
       <static>true</static>
-      <pose>-3.5 -12 0.35 0 0 0</pose>
+      <pose>-3.5 -12 0.25 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
           <material>
             <ambient>0.05 0.15 0.9 1</ambient>
@@ -827,19 +829,19 @@
       </link>
     </model>
 
-    <!-- RED BIN on road edge - North side of EW road -->
+    <!-- RED BIN on road edge - North side of EW road (slightly shorter) -->
     <model name="roadside_bin_red_3">
       <static>true</static>
-      <pose>10 3.5 0.35 0 0 0</pose>
+      <pose>10 3.5 0.25 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
           <material>
             <ambient>0.9 0.1 0.1 1</ambient>
@@ -850,19 +852,19 @@
       </link>
     </model>
 
-    <!-- BLUE BIN on road edge - South side of EW road (recyclable) -->
+    <!-- BLUE BIN on road edge - South side of EW road (recyclable, slightly shorter) -->
     <model name="roadside_bin_blue_3">
       <static>true</static>
-      <pose>-10 -3.5 0.35 0 0 0</pose>
+      <pose>-10 -3.5 0.25 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.6 0.6 0.7</size></box>
+            <box><size>0.6 0.6 0.5</size></box>
           </geometry>
           <material>
             <ambient>0.05 0.15 0.9 1</ambient>

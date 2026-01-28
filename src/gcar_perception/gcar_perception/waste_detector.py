@@ -72,7 +72,7 @@ class WasteDetector(Node):
         self.detected_waste_history = {}
         self.waste_memory_duration = 30.0  # seconds - remember picked waste for this long
         
-        # Minimum contour area to consider (filters out noise)
+        # Minimum contour area to consider (filters out tiny noise BEFORE voting)
         # Larger values = object must be closer to robot
         self.min_contour_area = 2500
         
@@ -96,18 +96,26 @@ class WasteDetector(Node):
         self.blue_lower = np.array([95, 80, 60])
         self.blue_upper = np.array([135, 255, 255])
 
-        # Detection gating: require object to be in front of camera (center-ish + lower half only)
+        # Detection gating: require object to be in front of camera (center-ish + bottom half)
         # This reduces false positives from distant scenery.
         self.center_x_min = 0.30   # fraction of image width (tighter horizontal window)
         self.center_x_max = 0.70
-        self.center_y_min = 0.40   # fraction of image height (only lower 60% - closer objects)
+        self.center_y_min = 0.50   # fraction of image height (only LOWER 50% - very close to robot)
 
         # Publish only on change (plus cooldown) to avoid spamming same label
         self.last_published = None
         
         # Cooldown to prevent spam publishing
         self.last_detection_time = self.get_clock().now()
-        self.detection_cooldown = 2.0  # seconds - increased to prevent detection spam during pickup
+        self.detection_cooldown = 1.0  # seconds - slightly faster, combined with voting below
+
+        # Voting / latching for confirmed detections:
+        # Require N consecutive frames of a candidate waste label before
+        # actually publishing to /detected_waste. This kills "ghost"
+        # single-frame detections.
+        self.vote_required_frames = 5
+        self.current_vote_label = None
+        self.current_vote_count = 0
         
         self.get_logger().info('Waste Detector Node Started')
         self.get_logger().info('Subscribed to: /gcar/camera/image_raw, /gcar/odom')
@@ -167,13 +175,6 @@ class WasteDetector(Node):
             h=h,
         )
         
-        # Check cooldown
-        current_time = self.get_clock().now()
-        time_diff = (current_time - self.last_detection_time).nanoseconds / 1e9
-        
-        if time_diff < self.detection_cooldown:
-            return
-        
         # Classify detected objects as bins or waste
         # Strategy: Size-based + location-based filtering
         label = None
@@ -189,17 +190,45 @@ class WasteDetector(Node):
         elif blue_detected:
             label = self.classify_object('blue', blue_area)
 
-        if label is None:
+        # If nothing meaningful was classified (no waste / no bin), reset votes and return
+        if label is None or not label.endswith('_waste'):
+            self.current_vote_label = None
+            self.current_vote_count = 0
             return
 
-        # Only publish WASTE detections, ignore bins
-        if label.endswith('_waste'):
-            # De-spam: publish only if changed OR cooldown expired
-            if label != self.last_published:
-                self.publish_detection(label)
-            else:
-                # same as last label; rely on cooldown to avoid spamming
-                self.publish_detection(label, force_cooldown=True)
+        # --- Voting / latching system for ghost suppression ---
+        # Require the SAME waste label for N consecutive frames before
+        # we actually publish to /detected_waste.
+        if self.current_vote_label == label:
+            self.current_vote_count += 1
+        else:
+            self.current_vote_label = label
+            self.current_vote_count = 1
+
+        if self.current_vote_count < self.vote_required_frames:
+            # Not yet confident enough – keep waiting
+            return
+
+        # At this point we have seen the same waste label for
+        # vote_required_frames consecutive frames -> CONFIRMED
+        # Cooldown check to avoid over-publishing
+        current_time = self.get_clock().now()
+        time_diff = (current_time - self.last_detection_time).nanoseconds / 1e9
+        if time_diff < self.detection_cooldown:
+            return
+
+        # Log confirmation with simple "image coordinates" context.
+        # (We don't keep exact centroid here, but we still log label + vote count.)
+        self.get_logger().info(
+            f'[Perception] Confirmed {label} after {self.current_vote_count} consecutive frames.'
+        )
+
+        # De-spam: publish only if changed OR cooldown expired
+        if label != self.last_published:
+            self.publish_detection(label)
+        else:
+            # same as last label; rely on cooldown to avoid spamming
+            self.publish_detection(label, force_cooldown=True)
 
     def classify_object(self, color, area):
         """Classify detected colored object as bin or waste.

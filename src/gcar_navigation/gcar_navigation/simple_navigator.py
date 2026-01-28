@@ -10,7 +10,9 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, Point
 from nav_msgs.msg import Odometry
 from std_srvs.srv import Trigger
+from std_msgs.msg import Bool
 import math
+import time
 
 
 class SimpleNavigator(Node):
@@ -33,9 +35,9 @@ class SimpleNavigator(Node):
         self.robot_y = 0.0
         self.robot_yaw = 0.0
         
-        # Navigation parameters - INCREASED for faster, smoother movement
-        self.linear_speed = 0.8  # m/s (increased from 0.3)
-        self.angular_speed = 0.3  # rad/s (reduced from 0.5 for smoother rotation)
+        # Navigation parameters - tuned for faster autonomous runs
+        self.linear_speed = 2.2  # m/s (faster forward motion)
+        self.angular_speed = 1.3  # rad/s (snappy but controllable turns)
         self.position_tolerance = 0.3  # meters (slightly increased for easier arrival)
         self.angle_tolerance = 0.15  # radians (slightly increased)
         
@@ -43,6 +45,9 @@ class SimpleNavigator(Node):
         self.target_x = None
         self.target_y = None
         self.navigating = False
+        # Teleop override state
+        self.teleop_active = False
+        self.last_teleop_time = None
         
         # Control timer (20 Hz)
         self.control_timer = self.create_timer(0.05, self.control_loop)
@@ -53,6 +58,14 @@ class SimpleNavigator(Node):
             '/nav/target',
             self.target_callback,
             10
+        )
+        # Subscribe to teleop activity flag so we can yield control when
+        # the operator starts driving manually.
+        self.teleop_sub = self.create_subscription(
+            Bool,
+            '/control/teleop_active',
+            self.teleop_active_callback,
+            10,
         )
         
         self.get_logger().info('Simple Navigator Node Started')
@@ -81,8 +94,30 @@ class SimpleNavigator(Node):
         self.get_logger().info(f'New navigation target: ({self.target_x:.2f}, {self.target_y:.2f})')
         self.get_logger().info(f'Current position: ({self.robot_x:.2f}, {self.robot_y:.2f})')
     
+    def teleop_active_callback(self, msg: Bool):
+        """Receive teleop activity flag from WASD node.
+        
+        When teleop is active, we should immediately stop navigating and
+        yield control of /gcar/cmd_vel to the operator.
+        """
+        self.teleop_active = bool(msg.data)
+        if self.teleop_active:
+            self.last_teleop_time = time.time()
+    
     def control_loop(self):
         """Main control loop for navigation."""
+        # If teleop is active (or was very recently), completely yield:
+        # stop the robot, clear navigating, and do not publish any commands.
+        now = time.time()
+        if self.teleop_active or (
+            self.last_teleop_time is not None and (now - self.last_teleop_time) < 0.5
+        ):
+            if self.navigating:
+                self.get_logger().debug('Teleop active - stopping navigator and yielding control.')
+            self.stop_robot()
+            self.navigating = False
+            return
+
         if not self.navigating or self.target_x is None:
             return
         
@@ -96,9 +131,12 @@ class SimpleNavigator(Node):
         angle_diff = target_angle - self.robot_yaw
         angle_diff = math.atan2(math.sin(angle_diff), math.cos(angle_diff))
         
-        # Check if reached target
-        if distance < self.position_tolerance:
-            self.get_logger().info('Reached target!')
+        # Safety buffer: stop when "close enough" to avoid touching the target (e.g., bin)
+        safe_distance = 0.8  # meters - do not drive closer than this
+        if distance < safe_distance:
+            self.get_logger().info(
+                f'Reached safe distance to target ({distance:.2f} m). Stopping to avoid collision.'
+            )
             self.stop_robot()
             self.navigating = False
             return
@@ -108,14 +146,15 @@ class SimpleNavigator(Node):
         
         # If facing wrong direction, rotate first (with smoother rotation)
         if abs(angle_diff) > self.angle_tolerance:
-            # Proportional angular control for smoother rotation
-            angular_gain = 0.8  # Reduced for smoother rotation
+            # Proportional angular control for rotation
+            angular_gain = 1.0
             twist.angular.z = angular_gain * self.angular_speed if angle_diff > 0 else -angular_gain * self.angular_speed
             twist.linear.x = 0.0
         else:
-            # Move forward with smooth angular correction
-            twist.linear.x = min(self.linear_speed, distance * 0.5)  # Scale down near target
-            twist.angular.z = 0.3 * angle_diff  # Reduced correction gain for smoother movement
+            # Move forward with angular correction
+            # Use stronger scale so we don't crawl forever
+            twist.linear.x = min(self.linear_speed, max(0.8, distance * 1.2))
+            twist.angular.z = 0.5 * angle_diff
         
         self.cmd_vel_pub.publish(twist)
     

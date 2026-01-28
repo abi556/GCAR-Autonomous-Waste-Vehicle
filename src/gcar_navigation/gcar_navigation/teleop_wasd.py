@@ -10,6 +10,7 @@ import time
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 
 
 class TeleopWASD(Node):
@@ -20,6 +21,8 @@ class TeleopWASD(Node):
         
         # Publisher for cmd_vel
         self.publisher_ = self.create_publisher(Twist, '/gcar/cmd_vel', 10)
+        # Publisher for teleop activity (used to pause autonomous navigator)
+        self.teleop_active_pub = self.create_publisher(Bool, '/control/teleop_active', 10)
         
         # Speed parameters
         self.linear_speed = 0.5  # m/s
@@ -37,6 +40,8 @@ class TeleopWASD(Node):
         # Key release timeout (if no key for this long, assume released)
         self.key_timeout = 0.15  # seconds
         self.last_key_time = 0.0
+        # Track last published teleop state to avoid spamming identical messages
+        self.teleop_active = False
         
         self.get_logger().info('WASD Teleop Node Started')
         self.print_instructions()
@@ -139,6 +144,16 @@ class TeleopWASD(Node):
                     msg.linear.x = target_linear
                     msg.angular.z = target_angular
                     self.publisher_.publish(msg)
+
+                    # Teleop activity flag: TRUE while robot is being driven with WASD,
+                    # FALSE when all movement keys are released.
+                    in_motion = (target_linear != 0.0 or target_angular != 0.0)
+                    if in_motion != self.teleop_active:
+                        self.teleop_active = in_motion
+                        active_msg = Bool()
+                        active_msg.data = self.teleop_active
+                        self.teleop_active_pub.publish(active_msg)
+                    
                     last_publish_time = current_time
                 
         except Exception as e:

@@ -26,7 +26,10 @@ class ArmController(Node):
     POSES = {
         'home': [0.0, 0.0, 0.0],                    # Stowed upright position (all joints straight)
         'pick_front': [0.0, 1.35, 1.25],            # FIXED: POSITIVE angles to reach FORWARD where camera sees
-        'place_internal': [0.0, 0.65, 0.85],        # Face forward, reach over chassis to drop waste
+        # Use PLACE_INTERNAL as a mid/high "carry" pose BEHIND the robot during navigation,
+        # so the arm doesn't collide with the bin while approaching it.
+        # 3.14 rad (~180°) rotates the base joint to the rear.
+        'place_internal': [3.14, 0.65, 0.85],
         'place_bin': [1.57, 0.3, 0.4],              # Rotate 90° right, reach out ~0.5m high to drop into bin
     }
     
