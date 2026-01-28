@@ -1,0 +1,26 @@
+# Initial Setup
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install
+echo "source ~/gcar_ws/install/setup.bash" >> ~/.bashrc
+
+# Next Setup
+# Terminal 1: Gazebo
+ros2 launch gcar_description spawn_robot.launch.py (https://spawn_robot.launch.py/)
+
+# Terminal 2: Arm Controllers
+ros2 launch gcar_manipulation arm_control_simple.launch.py (https://arm_control_simple.launch.py/)
+
+# Terminal 3: Gazebo Manager
+ros2 run gcar_manipulation gazebo_manager
+
+# Terminal 4: Simple Navigator (REQUIRED!)
+ros2 run gcar_navigation simple_navigator
+
+# Terminal 5: Waste Detector (should NOT crash now!)
+ros2 run gcar_perception waste_detector
+
+# Terminal 6: Pickup Coordinator
+ros2 run gcar_manipulation pickup_coordinator
+
+# Terminal 7: Teleop (optional)
+ros2 run gcar_navigation teleop_wasd
